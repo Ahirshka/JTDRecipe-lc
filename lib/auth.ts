@@ -355,7 +355,7 @@ export const initializeOwnerAccount = (): void => {
     const ownerUser: User = {
       id: "owner-" + Date.now(),
       username: "Owner",
-      email: "owner@justtherecipe.com",
+      email: "owner@justthedamnrecipe.net",
       password: "owner123", // In production, this should be properly hashed
       role: "owner",
       status: "active",

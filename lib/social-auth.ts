@@ -3,6 +3,7 @@ export interface SocialProvider {
   name: string
   icon: string
   color: string
+  logo?: string
 }
 
 export interface SocialUser {
@@ -18,25 +19,29 @@ export const socialProviders: SocialProvider[] = [
     id: "google",
     name: "Google",
     icon: "🔍",
-    color: "bg-red-500 hover:bg-red-600",
+    color: "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300",
+    logo: "/logos/google-logo.png",
   },
   {
     id: "facebook",
     name: "Facebook",
     icon: "📘",
     color: "bg-blue-600 hover:bg-blue-700",
+    logo: "/logos/facebook-logo.png",
   },
   {
     id: "instagram",
     name: "Instagram",
     icon: "📷",
     color: "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600",
+    logo: "/logos/instagram-logo.png",
   },
   {
     id: "tiktok",
     name: "TikTok",
     icon: "🎵",
     color: "bg-black hover:bg-gray-800",
+    logo: "/logos/tiktok-logo.png",
   },
 ]
 

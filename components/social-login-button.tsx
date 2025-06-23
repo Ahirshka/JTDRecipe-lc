@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { useState } from "react"
+import Image from "next/image"
 
 interface SocialLoginButtonProps {
   provider: {
@@ -10,6 +11,7 @@ interface SocialLoginButtonProps {
     name: string
     icon: string
     color: string
+    logo?: string
   }
   onLogin: (provider: string) => Promise<void>
   disabled?: boolean
@@ -36,6 +38,14 @@ export function SocialLoginButton({ provider, onLogin, disabled }: SocialLoginBu
     >
       {isLoading ? (
         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+      ) : provider.logo ? (
+        <Image
+          src={provider.logo || "/placeholder.svg"}
+          alt={`${provider.name} logo`}
+          width={20}
+          height={20}
+          className="mr-2"
+        />
       ) : (
         <span className="text-lg mr-2">{provider.icon}</span>
       )}
