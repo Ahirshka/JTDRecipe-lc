@@ -127,7 +127,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="text-3xl font-bold text-orange-600">
-            JustTheDamnRecipe
+            JTDRecipe
           </Link>
           <p className="text-gray-600 mt-2">Welcome back to the community</p>
         </div>
@@ -182,7 +182,11 @@ export default function LoginPage() {
                     <Label htmlFor="password">Password</Label>
                     <Input id="password" name="password" type="password" required />
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button
+                    type="submit"
+                    className="w-full bg-orange-400 hover:bg-orange-500 text-white"
+                    disabled={isLoading}
+                  >
                     {isLoading ? "Signing in..." : "Sign In with Email"}
                   </Button>
                 </form>
@@ -252,7 +256,11 @@ export default function LoginPage() {
                     <Label htmlFor="confirm-password">Confirm Password</Label>
                     <Input id="confirm-password" name="confirm-password" type="password" required />
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button
+                    type="submit"
+                    className="w-full bg-orange-400 hover:bg-orange-500 text-white"
+                    disabled={isLoading}
+                  >
                     {isLoading ? "Creating account..." : "Create Account"}
                   </Button>
                 </form>

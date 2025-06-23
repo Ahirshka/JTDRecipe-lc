@@ -9,7 +9,7 @@ import { AuthProvider } from "@/contexts/auth-context"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "JustTheDamnRecipe",
+  title: "JTDRecipe",
   description: "No life-stories, no fluff, just recipes that work.",
     generator: 'v0.dev'
 }

@@ -238,7 +238,7 @@ export function ModerationDashboard({ currentUser }: ModerationDashboardProps) {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>User Management</CardTitle>
+          <CardTitle>Admin Panel</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-4 mb-6">
