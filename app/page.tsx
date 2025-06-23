@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import Image from "next/image"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const featuredRecipes = [
   {
@@ -63,11 +64,26 @@ export default function HomePage() {
               <Link href="/add-recipe">
                 <Button size="sm">Add Recipe</Button>
               </Link>
-              <Link href="/login">
-                <Button variant="outline" size="sm">
-                  Login
-                </Button>
-              </Link>
+              {/* TODO: Replace with actual auth state */}
+              {false ? (
+                <div className="flex items-center gap-3">
+                  <Link href="/profile">
+                    <Avatar className="w-8 h-8 cursor-pointer">
+                      <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
+                      <AvatarFallback>U</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Button variant="outline" size="sm">
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <Link href="/login">
+                  <Button variant="outline" size="sm">
+                    Login
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>
