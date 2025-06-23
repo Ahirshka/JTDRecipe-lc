@@ -1,75 +1,75 @@
-"use client"
-
-import { Star, Clock, Users, Heart, Share2 } from "lucide-react"
+import { Star, Clock, Users, Heart, Bookmark, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import Image from "next/image"
 import Link from "next/link"
-import { useAuth } from "@/contexts/auth-context"
-import { getRecipeById } from "@/lib/recipes"
-import { useParams } from "next/navigation"
-import { useState, useEffect } from "react"
+
+// Mock data - in a real app, this would come from a database
+const recipe = {
+  id: 1,
+  title: "Perfect Chocolate Chip Cookies",
+  author: "BakingMaster",
+  authorAvatar: "/placeholder.svg?height=40&width=40",
+  rating: 4.9,
+  reviews: 234,
+  cookTime: "25 min",
+  prepTime: "15 min",
+  servings: 24,
+  difficulty: "Easy",
+  views: 1250,
+  image: "/placeholder.svg?height=400&width=600",
+  category: "Desserts",
+  description:
+    "These are the most perfect chocolate chip cookies you'll ever make. Crispy edges, chewy centers, and loaded with chocolate chips.",
+  ingredients: [
+    "2¼ cups all-purpose flour",
+    "1 tsp baking soda",
+    "1 tsp salt",
+    "1 cup butter, softened",
+    "¾ cup granulated sugar",
+    "¾ cup packed brown sugar",
+    "2 large eggs",
+    "2 tsp vanilla extract",
+    "2 cups chocolate chips",
+  ],
+  instructions: [
+    "Preheat oven to 375°F (190°C).",
+    "In a medium bowl, whisk together flour, baking soda, and salt.",
+    "In a large bowl, cream together butter and both sugars until light and fluffy.",
+    "Beat in eggs one at a time, then stir in vanilla.",
+    "Gradually blend in flour mixture.",
+    "Stir in chocolate chips.",
+    "Drop rounded tablespoons of dough onto ungreased cookie sheets.",
+    "Bake for 9-11 minutes or until golden brown.",
+    "Cool on baking sheet for 2 minutes; remove to wire rack.",
+  ],
+  tags: ["cookies", "dessert", "chocolate", "baking", "easy"],
+  dateAdded: "2024-01-15",
+}
+
+const reviews = [
+  {
+    id: 1,
+    user: "CookieLover23",
+    avatar: "/placeholder.svg?height=32&width=32",
+    rating: 5,
+    comment: "These turned out amazing! My family loved them.",
+    date: "2024-01-20",
+  },
+  {
+    id: 2,
+    user: "HomeBaker",
+    avatar: "/placeholder.svg?height=32&width=32",
+    rating: 5,
+    comment: "Perfect recipe, followed exactly and they were delicious!",
+    date: "2024-01-18",
+  },
+]
 
 export default function RecipePage() {
-  const params = useParams()
-  const recipeId = params.id as string
-  const { user, isAuthenticated, toggleFavorite, rateRecipe, getUserRating, isFavorited } = useAuth()
-
-  const [recipe, setRecipe] = useState<any>(null)
-  const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false)
-  const [userRating, setUserRating] = useState<number | null>(null)
-  const [isFavorite, setIsFavorite] = useState(false)
-
-  useEffect(() => {
-    const recipeData = getRecipeById(recipeId)
-    setRecipe(recipeData)
-
-    if (isAuthenticated && recipeData) {
-      setUserRating(getUserRating(recipeId))
-      setIsFavorite(isFavorited(recipeId))
-    }
-  }, [recipeId, isAuthenticated, getUserRating, isFavorited])
-
-  const handleFavoriteToggle = () => {
-    if (!isAuthenticated) return
-    const newFavoriteStatus = toggleFavorite(recipeId)
-    setIsFavorite(newFavoriteStatus)
-  }
-
-  const handleRating = (rating: number) => {
-    if (!isAuthenticated) return
-    rateRecipe(recipeId, rating)
-    setUserRating(rating)
-    setIsRatingDialogOpen(false)
-  }
-
-  if (!recipe) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Recipe not found</div>
-  }
-
-  const reviews = [
-    {
-      id: 1,
-      user: "CookieLover23",
-      avatar: "/placeholder.svg?height=32&width=32",
-      rating: 5,
-      comment: "These turned out amazing! My family loved them.",
-      date: "2024-01-20",
-    },
-    {
-      id: 2,
-      user: "HomeBaker",
-      avatar: "/placeholder.svg?height=32&width=32",
-      rating: 5,
-      comment: "Perfect recipe, followed exactly and they were delicious!",
-      date: "2024-01-18",
-    },
-  ]
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -80,19 +80,14 @@ export default function RecipePage() {
               JustTheDamnRecipe
             </Link>
             <div className="flex items-center gap-4">
-              {isAuthenticated ? (
-                <Link href="/profile">
-                  <Button variant="outline" size="sm">
-                    Profile
-                  </Button>
-                </Link>
-              ) : (
-                <Link href="/login">
-                  <Button variant="outline" size="sm">
-                    Login
-                  </Button>
-                </Link>
-              )}
+              <Link href="/add-recipe">
+                <Button size="sm">Add Recipe</Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="outline" size="sm">
+                  Login
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -146,22 +141,6 @@ export default function RecipePage() {
                 <span className="text-gray-500">({recipe.reviews} reviews)</span>
               </div>
 
-              {userRating && (
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-sm text-gray-600">Your rating:</span>
-                  <div className="flex">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-4 h-4 ${
-                          star <= userRating ? "fill-orange-400 text-orange-400" : "text-gray-300"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <p className="text-gray-600 mb-6">{recipe.description}</p>
 
               <div className="grid grid-cols-3 gap-4 mb-6">
@@ -183,55 +162,13 @@ export default function RecipePage() {
               </div>
 
               <div className="flex gap-2">
-                {isAuthenticated ? (
-                  <>
-                    <Button
-                      className="flex-1"
-                      variant={isFavorite ? "default" : "outline"}
-                      onClick={handleFavoriteToggle}
-                    >
-                      <Heart className={`w-4 h-4 mr-2 ${isFavorite ? "fill-current" : ""}`} />
-                      {isFavorite ? "Favorited" : "Favorite"}
-                    </Button>
-                    <Dialog open={isRatingDialogOpen} onOpenChange={setIsRatingDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline">
-                          <Star className="w-4 h-4 mr-2" />
-                          {userRating ? "Update Rating" : "Rate"}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Rate this recipe</DialogTitle>
-                        </DialogHeader>
-                        <div className="flex justify-center gap-2 py-4">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => handleRating(star)}
-                              className="p-1 hover:scale-110 transition-transform"
-                            >
-                              <Star
-                                className={`w-8 h-8 ${
-                                  star <= (userRating || 0)
-                                    ? "fill-orange-400 text-orange-400"
-                                    : "text-gray-300 hover:text-orange-400"
-                                }`}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </>
-                ) : (
-                  <Link href="/login" className="flex-1">
-                    <Button className="w-full">
-                      <Heart className="w-4 h-4 mr-2" />
-                      Login to Save
-                    </Button>
-                  </Link>
-                )}
+                <Button className="flex-1">
+                  <Heart className="w-4 h-4 mr-2" />
+                  Save
+                </Button>
+                <Button variant="outline">
+                  <Bookmark className="w-4 h-4" />
+                </Button>
                 <Button variant="outline">
                   <Share2 className="w-4 h-4" />
                 </Button>
@@ -249,7 +186,7 @@ export default function RecipePage() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
-                  {recipe.ingredients.map((ingredient: string, index: number) => (
+                  {recipe.ingredients.map((ingredient, index) => (
                     <li key={index} className="flex items-start gap-2">
                       <input type="checkbox" className="mt-1" />
                       <span className="text-sm">{ingredient}</span>
@@ -268,7 +205,7 @@ export default function RecipePage() {
               </CardHeader>
               <CardContent>
                 <ol className="space-y-4">
-                  {recipe.instructions.map((instruction: string, index: number) => (
+                  {recipe.instructions.map((instruction, index) => (
                     <li key={index} className="flex gap-4">
                       <span className="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-medium">
                         {index + 1}

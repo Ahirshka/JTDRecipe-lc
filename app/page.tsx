@@ -1,21 +1,10 @@
-"use client"
-
-import { Search, Star, Clock, Eye, TrendingUp, User, Shield } from "lucide-react"
+import { Search, Star, Clock, Eye, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import Image from "next/image"
-import { useAuth } from "@/contexts/auth-context"
-import { hasPermission } from "@/lib/auth"
 
 const featuredRecipes = [
   {
@@ -61,12 +50,6 @@ const categories = [
 ]
 
 export default function HomePage() {
-  const { user, isAuthenticated, logout, loading } = useAuth()
-
-  if (loading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -77,58 +60,14 @@ export default function HomePage() {
               JustTheDamnRecipe
             </Link>
             <div className="flex items-center gap-4">
-              {isAuthenticated && (
-                <Link href="/add-recipe">
-                  <Button size="sm">Add Recipe</Button>
-                </Link>
-              )}
-              {isAuthenticated ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                      {user?.avatar ? (
-                        <img
-                          src={user.avatar || "/placeholder.svg"}
-                          alt={user.username}
-                          className="w-4 h-4 rounded-full"
-                        />
-                      ) : (
-                        <User className="w-4 h-4" />
-                      )}
-                      {user?.username}
-                      {user?.role !== "user" && (
-                        <Badge variant="outline" className="text-xs ml-1">
-                          {user?.role}
-                        </Badge>
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href="/profile">Profile</Link>
-                    </DropdownMenuItem>
-                    {hasPermission(user?.role || "user", "moderator") && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin" className="flex items-center gap-2">
-                            <Shield className="w-4 h-4" />
-                            Admin Panel
-                          </Link>
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logout}>Logout</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Link href="/login">
-                  <Button variant="outline" size="sm">
-                    Login
-                  </Button>
-                </Link>
-              )}
+              <Link href="/add-recipe">
+                <Button size="sm">Add Recipe</Button>
+              </Link>
+              <Link href="/login">
+                <Button variant="outline" size="sm">
+                  Login
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -138,8 +77,7 @@ export default function HomePage() {
       <section className="bg-white py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Just the damn recipe.</h1>
-          <p className="text-xl text-gray-600 mb-8">No life-stories, no fluff, just recipes that work.</p>
-          {isAuthenticated && <p className="text-lg text-orange-600 mb-4">Welcome back, {user?.username}!</p>}
+          <p className="text-xl text-gray-600 mb-8">No life stories, no BS. Just recipes that work.</p>
 
           {/* Search Bar */}
           <div className="relative max-w-2xl mx-auto">
