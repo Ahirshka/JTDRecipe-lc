@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, X, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/contexts/auth-context"
-import { secureDB } from "@/lib/secure-database"
 import { toast } from "@/hooks/use-toast"
+import { createRecipe } from "@/lib/recipe-actions"
 
 const categories = [
   "Breakfast",
@@ -39,8 +39,8 @@ const difficulties = ["Easy", "Medium", "Hard"]
 
 export default function AddRecipePage() {
   const router = useRouter()
-  const { user, isAuthenticated } = useAuth()
-  const [loading, setLoading] = useState(false)
+  const { user, loading } = useAuth()
+  const [submitting, setSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -58,7 +58,11 @@ export default function AddRecipePage() {
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
 
-  if (!isAuthenticated) {
+  if (loading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>
+  }
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -116,7 +120,7 @@ export default function AddRecipePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setSubmitting(true)
 
     try {
       // Validate required fields
@@ -156,29 +160,36 @@ export default function AddRecipePage() {
         prep_time_minutes: Number.parseInt(formData.prepTime) || 0,
         cook_time_minutes: Number.parseInt(formData.cookTime) || 0,
         servings: Number.parseInt(formData.servings) || 1,
-        image_url: formData.imageUrl || null,
+        image_url: formData.imageUrl || undefined,
         ingredients: ingredients.filter((ing) => ing.ingredient.trim()),
-        instructions: instructions.filter((inst) => inst.instruction.trim()),
+        instructions: instructions
+          .filter((inst) => inst.instruction.trim())
+          .map((inst, index) => ({
+            instruction: inst.instruction,
+            step_number: index + 1,
+          })),
         tags: tags,
-        author_id: user?.id,
-        author_username: user?.username,
-        moderation_status: "pending", // All user recipes start as pending
-        is_published: false, // Not published until approved
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       }
 
-      // Submit recipe to secure database
-      const recipeId = secureDB.createRecipe(recipeData)
+      // Submit recipe
+      const result = await createRecipe(recipeData)
 
-      toast({
-        title: "Recipe Submitted!",
-        description:
-          "Your recipe has been submitted for review. It will appear on the site once approved by our moderators.",
-      })
+      if (result.success) {
+        toast({
+          title: "Recipe Submitted!",
+          description:
+            "Your recipe has been submitted for review. It will appear on the site once approved by our moderators.",
+        })
 
-      // Redirect to homepage
-      router.push("/")
+        // Redirect to homepage
+        router.push("/")
+      } else {
+        toast({
+          title: "Submission Failed",
+          description: result.error || "There was an error submitting your recipe. Please try again.",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
       console.error("Error submitting recipe:", error)
       toast({
@@ -187,7 +198,7 @@ export default function AddRecipePage() {
         variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -449,8 +460,8 @@ export default function AddRecipePage() {
                 Cancel
               </Button>
             </Link>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Submitting..." : "Submit Recipe"}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit Recipe"}
             </Button>
           </div>
         </form>

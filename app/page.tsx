@@ -9,18 +9,37 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
 import { hasPermission } from "@/lib/auth"
 import { useEffect, useState } from "react"
-import { recipeAnalytics } from "@/lib/recipe-analytics"
-import { secureDB } from "@/lib/secure-database"
-import type { DatabaseRecipe } from "@/lib/database"
 import { Footer } from "@/components/footer"
+import { useRouter } from "next/navigation"
+
+interface Recipe {
+  id: string
+  title: string
+  description?: string
+  author_id: string
+  author_username: string
+  category: string
+  difficulty: string
+  prep_time_minutes: number
+  cook_time_minutes: number
+  servings: number
+  image_url?: string
+  rating: number
+  review_count: number
+  view_count: number
+  moderation_status: string
+  is_published: boolean
+  created_at: string
+  updated_at: string
+}
 
 const categories = [
   { name: "Recently Added", icon: Clock, count: 0, description: "Last 30 days", key: "recent" },
@@ -30,19 +49,20 @@ const categories = [
 ]
 
 export default function HomePage() {
-  const { user, isAuthenticated, logout, loading } = useAuth()
+  const { user, loading, refreshUser } = useAuth()
+  const router = useRouter()
   const [allFeaturedRecipes, setAllFeaturedRecipes] = useState<{
-    recent: DatabaseRecipe[]
-    rated: DatabaseRecipe[]
-    viewed: DatabaseRecipe[]
-    trending: DatabaseRecipe[]
+    recent: Recipe[]
+    rated: Recipe[]
+    viewed: Recipe[]
+    trending: Recipe[]
   }>({
     recent: [],
     rated: [],
     viewed: [],
     trending: [],
   })
-  const [displayedRecipes, setDisplayedRecipes] = useState<DatabaseRecipe[]>([])
+  const [displayedRecipes, setDisplayedRecipes] = useState<Recipe[]>([])
   const [activeCategory, setActiveCategory] = useState<string>("recent")
   const [categoryData, setCategoryData] = useState(categories)
   const [loadingRecipes, setLoadingRecipes] = useState(true)
@@ -50,40 +70,37 @@ export default function HomePage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Initialize sample interactions for demo
-        await recipeAnalytics.initializeSampleInteractions()
+        // Fetch recipes from API route
+        const response = await fetch("/api/recipes")
+        const data = await response.json()
 
-        // Get all recipes and filter only approved ones
-        const allRecipes = secureDB.getAllRecipes()
-        const approvedRecipes = allRecipes.filter(
-          (recipe) => recipe.moderation_status === "approved" && recipe.is_published,
-        )
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch recipes")
+        }
 
-        // Load different recipe categories from approved recipes only
-        const [recentlyAdded, topRated, mostViewed, trending] = await Promise.all([
-          Promise.resolve(
-            approvedRecipes
-              .filter((recipe) => {
-                const recipeDate = new Date(recipe.created_at)
-                const thirtyDaysAgo = new Date()
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-                return recipeDate >= thirtyDaysAgo
-              })
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-              .slice(0, 12),
-          ),
-          Promise.resolve([...approvedRecipes].sort((a, b) => b.rating - a.rating).slice(0, 12)),
-          Promise.resolve([...approvedRecipes].sort((a, b) => b.view_count - a.view_count).slice(0, 12)),
-          Promise.resolve(
-            [...approvedRecipes]
-              .sort((a, b) => {
-                const aScore = a.view_count * 0.3 + a.rating * a.review_count * 0.7
-                const bScore = b.view_count * 0.3 + b.rating * b.review_count * 0.7
-                return bScore - aScore
-              })
-              .slice(0, 12),
-          ),
-        ])
+        const allRecipes = data.recipes || []
+
+        // Calculate date ranges
+        const now = new Date()
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+        // Filter and sort recipes for different categories
+        const recentlyAdded = allRecipes
+          .filter((recipe: Recipe) => new Date(recipe.created_at) >= thirtyDaysAgo)
+          .sort((a: Recipe, b: Recipe) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 12)
+
+        const topRated = [...allRecipes].sort((a: Recipe, b: Recipe) => b.rating - a.rating).slice(0, 12)
+
+        const mostViewed = [...allRecipes].sort((a: Recipe, b: Recipe) => b.view_count - a.view_count).slice(0, 12)
+
+        const trending = [...allRecipes]
+          .sort((a: Recipe, b: Recipe) => {
+            const aScore = a.view_count * 0.3 + a.rating * a.review_count * 0.7
+            const bScore = b.view_count * 0.3 + b.rating * b.review_count * 0.7
+            return bScore - aScore
+          })
+          .slice(0, 12)
 
         // Store all categories of recipes
         const categorizedRecipes = {
@@ -105,30 +122,6 @@ export default function HomePage() {
         ])
       } catch (error) {
         console.error("Error loading homepage data:", error)
-        // Fallback to original analytics if secure DB fails
-        const [recentlyAdded, topRated, mostViewed, trending] = await Promise.all([
-          recipeAnalytics.getRecentlyAddedRecipes(12),
-          recipeAnalytics.getTopRatedRecipes(12),
-          recipeAnalytics.getMostViewedRecipes(12),
-          recipeAnalytics.getTrendingRecipes(12),
-        ])
-
-        const categorizedRecipes = {
-          recent: recentlyAdded,
-          rated: topRated,
-          viewed: mostViewed,
-          trending: trending,
-        }
-
-        setAllFeaturedRecipes(categorizedRecipes)
-        setDisplayedRecipes(recentlyAdded.slice(0, 6))
-
-        setCategoryData([
-          { ...categories[0], count: recentlyAdded.length },
-          { ...categories[1], count: topRated.length },
-          { ...categories[2], count: mostViewed.length },
-          { ...categories[3], count: trending.length },
-        ])
       } finally {
         setLoadingRecipes(false)
       }
@@ -138,15 +131,25 @@ export default function HomePage() {
   }, [])
 
   const handleCategoryClick = async (categoryKey: string, categoryName: string) => {
-    // Track interaction
-    await recipeAnalytics.trackInteraction("homepage", "view", user?.id)
-
     // Update active category
     setActiveCategory(categoryKey)
 
     // Update displayed recipes based on category
     const recipesToShow = allFeaturedRecipes[categoryKey as keyof typeof allFeaturedRecipes] || []
     setDisplayedRecipes(recipesToShow.slice(0, 6))
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+      await refreshUser()
+      router.refresh()
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
   }
 
   if (loading) {
@@ -163,12 +166,12 @@ export default function HomePage() {
               JTDRecipe
             </Link>
             <div className="flex items-center gap-4">
-              {isAuthenticated && (
+              {user && (
                 <Link href="/add-recipe">
                   <Button size="sm">Add Recipe</Button>
                 </Link>
               )}
-              {isAuthenticated ? (
+              {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="flex items-center gap-2">
@@ -205,7 +208,7 @@ export default function HomePage() {
                       </>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logout}>Logout</DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -225,7 +228,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Just the damn recipe.</h1>
           <p className="text-xl text-gray-600 mb-8">No life-stories, no fluff, just recipes that work.</p>
-          {isAuthenticated && <p className="text-lg text-orange-600 mb-4">Welcome back, {user?.username}!</p>}
+          {user && <p className="text-lg text-orange-600 mb-4">Welcome back, {user?.username}!</p>}
 
           {/* Search Bar */}
           <div className="relative max-w-2xl mx-auto">
@@ -317,11 +320,7 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedRecipes.map((recipe) => (
-                <Link
-                  key={recipe.id}
-                  href={`/recipe/${recipe.id}`}
-                  onClick={() => recipeAnalytics.trackInteraction(recipe.id, "view", user?.id)}
-                >
+                <Link key={recipe.id} href={`/recipe/${recipe.id}`}>
                   <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                     <div className="relative">
                       <Image

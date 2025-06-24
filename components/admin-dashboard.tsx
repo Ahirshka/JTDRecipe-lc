@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,11 +12,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Shield, Users, Ban, CheckCircle, Clock, Search, Eye, UserX, ChefHat, Trash2 } from "lucide-react"
+import { Shield, Users, Ban, CheckCircle, Clock, Search, Eye, UserX, ChefHat, Trash2, XCircle } from "lucide-react"
 import { secureDB, type SecureUser, type SecureRecipe, type UserRole } from "@/lib/secure-database"
+import { toast } from "@/hooks/use-toast"
 
 interface AdminDashboardProps {
   currentUser: SecureUser
+}
+
+interface Recipe {
+  id: string
+  title: string
+  description?: string
+  author_username: string
+  category: string
+  difficulty: string
+  prep_time_minutes: number
+  cook_time_minutes: number
+  servings: number
+  image_url?: string
+  moderation_status: string
+  created_at: string
 }
 
 export function AdminDashboard({ currentUser }: AdminDashboardProps) {
@@ -51,9 +67,14 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [selectedRecipeForCategory, setSelectedRecipeForCategory] = useState<SecureRecipe | null>(null)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
   const [recipeFilter, setRecipeFilter] = useState<string>("all")
+  const [pendingRecipes, setPendingRecipes] = useState<Recipe[]>([])
+  const [loading, setLoading] = useState(true)
+  const [moderatingId, setModeratingId] = useState<string | null>(null)
+  const [moderationNotes, setModerationNotes] = useState("")
 
   useEffect(() => {
     loadData()
+    loadPendingRecipes()
   }, [])
 
   useEffect(() => {
@@ -72,6 +93,23 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
       setRecipes(allRecipes)
     } catch (error) {
       setMessage("Error loading data: " + (error as Error).message)
+    }
+  }
+
+  const loadPendingRecipes = async () => {
+    try {
+      const response = await fetch("/api/admin/pending-recipes")
+      const data = await response.json()
+      setPendingRecipes(data.recipes || [])
+    } catch (error) {
+      console.error("Failed to load pending recipes:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load pending recipes",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -277,6 +315,61 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
     setTimeout(() => setMessage(""), 3000)
   }
 
+  const handleModeration = async (recipeId: string, status: "approved" | "rejected") => {
+    setModeratingId(recipeId)
+
+    try {
+      const response = await fetch("/api/admin/moderate-recipe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipeId,
+          status,
+          notes: moderationNotes,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: `Recipe ${status} successfully`,
+        })
+        setPendingRecipes(pendingRecipes.filter((recipe) => recipe.id !== recipeId))
+        setModerationNotes("")
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to moderate recipe",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Moderation error:", error)
+      toast({
+        title: "Error",
+        description: "Failed to moderate recipe",
+        variant: "destructive",
+      })
+    } finally {
+      setModeratingId(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-orange-600" />
+          <p>Loading admin dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {message && (
@@ -314,77 +407,46 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-600" />
-              <div>
-                <p className="text-sm text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold">{stats.totalUsers}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingRecipes.length}</div>
+            <p className="text-xs text-muted-foreground">Recipes awaiting moderation</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600" />
-              <div>
-                <p className="text-sm text-gray-600">Active Users</p>
-                <p className="text-2xl font-bold">{stats.activeUsers}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <p className="text-xs text-muted-foreground">Registered users</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <ChefHat className="w-4 h-4 text-orange-600" />
-              <div>
-                <p className="text-sm text-gray-600">Total Recipes</p>
-                <p className="text-2xl font-bold">{stats.totalRecipes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => {
-            // Switch to recipes tab and filter to pending
-            const recipesTab = document.querySelector('[value="recipes"]') as HTMLElement
-            if (recipesTab) {
-              recipesTab.click()
-              // Filter to show only pending recipes
-              setTimeout(() => {
-                setRecipeSearchTerm("")
-                setFilteredRecipes(recipes.filter((r) => r.moderation_status === "pending"))
-              }, 100)
-            }
-          }}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-yellow-600" />
-              <div>
-                <p className="text-sm text-gray-600">Pending Review</p>
-                <p className="text-2xl font-bold">{stats.pendingRecipes}</p>
-                <p className="text-xs text-blue-600 mt-1">Click to review →</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Published Recipes</CardTitle>
+            <ChefHat className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalRecipes}</div>
+            <p className="text-xs text-muted-foreground">Approved recipes</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-purple-600" />
-              <div>
-                <p className="text-sm text-gray-600">New This Week</p>
-                <p className="text-2xl font-bold">{stats.newUsersThisWeek}</p>
-              </div>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Views</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">-</div>
+            <p className="text-xs text-muted-foreground">Recipe views</p>
           </CardContent>
         </Card>
       </div>
@@ -908,6 +970,83 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Pending Recipes */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Pending Recipe Reviews</CardTitle>
+          <CardDescription>Review and moderate user-submitted recipes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pendingRecipes.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">All caught up!</h3>
+              <p className="text-gray-600">No recipes pending review at the moment.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {pendingRecipes.map((recipe) => (
+                <div key={recipe.id} className="border rounded-lg p-4 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">{recipe.title}</h3>
+                      <p className="text-sm text-gray-600 mb-2">by {recipe.author_username}</p>
+                      {recipe.description && <p className="text-gray-700 mb-2">{recipe.description}</p>}
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <Badge variant="outline">{recipe.category}</Badge>
+                        <Badge variant="outline">{recipe.difficulty}</Badge>
+                        <Badge variant="outline">{recipe.prep_time_minutes + recipe.cook_time_minutes} min total</Badge>
+                        <Badge variant="outline">{recipe.servings} servings</Badge>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Submitted: {new Date(recipe.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {recipe.image_url && (
+                      <img
+                        src={recipe.image_url || "/placeholder.svg"}
+                        alt={recipe.title}
+                        className="w-24 h-24 object-cover rounded-lg ml-4"
+                      />
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`notes-${recipe.id}`}>Moderation Notes (optional)</Label>
+                    <Textarea
+                      id={`notes-${recipe.id}`}
+                      value={moderationNotes}
+                      onChange={(e) => setModerationNotes(e.target.value)}
+                      placeholder="Add any notes about this recipe..."
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleModeration(recipe.id, "approved")}
+                      disabled={moderatingId === recipe.id}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => handleModeration(recipe.id, "rejected")}
+                      disabled={moderatingId === recipe.id}
+                      variant="destructive"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
