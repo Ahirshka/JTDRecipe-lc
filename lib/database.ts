@@ -76,12 +76,329 @@ class RecipeDatabase {
   }
 
   private createTables() {
-    // Tables are created via SQL scripts
-    console.log("Database tables created")
+    // Initialize with enhanced recipe data including better tags and categories
+    const initialRecipes = [
+      {
+        id: "1",
+        title: "Perfect Chocolate Chip Cookies",
+        description:
+          "These are the most perfect chocolate chip cookies you'll ever make. Crispy edges, chewy centers, and loaded with chocolate chips.",
+        author_id: "user1",
+        category: "Desserts",
+        difficulty: "Easy",
+        prep_time_minutes: 15,
+        cook_time_minutes: 25,
+        servings: 24,
+        image_url: "/placeholder.svg?height=400&width=600",
+        rating: 4.9,
+        review_count: 234,
+        view_count: 1250,
+        is_published: true,
+        created_at: "2024-01-15T00:00:00Z",
+        updated_at: "2024-01-15T00:00:00Z",
+      },
+      {
+        id: "2",
+        title: "One-Pot Chicken Alfredo",
+        description: "Creamy, delicious chicken alfredo made in just one pot for easy cleanup.",
+        author_id: "user2",
+        category: "Main Course",
+        difficulty: "Medium",
+        prep_time_minutes: 10,
+        cook_time_minutes: 30,
+        servings: 4,
+        image_url: "/placeholder.svg?height=400&width=600",
+        rating: 4.8,
+        review_count: 189,
+        view_count: 980,
+        is_published: true,
+        created_at: "2024-01-10T00:00:00Z",
+        updated_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "3",
+        title: "Fresh Garden Salad",
+        description: "A refreshing garden salad with crisp vegetables and homemade vinaigrette.",
+        author_id: "user3",
+        category: "Appetizer",
+        difficulty: "Easy",
+        prep_time_minutes: 10,
+        cook_time_minutes: 0,
+        servings: 4,
+        image_url: "/placeholder.svg?height=400&width=600",
+        rating: 4.7,
+        review_count: 156,
+        view_count: 750,
+        is_published: true,
+        created_at: "2024-01-05T00:00:00Z",
+        updated_at: "2024-01-05T00:00:00Z",
+      },
+    ]
+
+    const initialUsers = [
+      {
+        id: "user1",
+        username: "BakingMaster",
+        email: "baker@example.com",
+        provider: "local",
+        role: "user",
+        status: "active",
+        is_verified: true,
+        is_suspended: false,
+        warning_count: 0,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+      {
+        id: "user2",
+        username: "QuickCook",
+        email: "quick@example.com",
+        provider: "local",
+        role: "user",
+        status: "active",
+        is_verified: true,
+        is_suspended: false,
+        warning_count: 0,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+      {
+        id: "user3",
+        username: "HealthyEats",
+        email: "healthy@example.com",
+        provider: "local",
+        role: "user",
+        status: "active",
+        is_verified: true,
+        is_suspended: false,
+        warning_count: 0,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    ]
+
+    // Enhanced ingredients with better organization
+    const initialIngredients = [
+      // Recipe 1 - Chocolate Chip Cookies
+      {
+        id: "1_ing_1",
+        recipe_id: "1",
+        ingredient: "2¼ cups all-purpose flour",
+        order_index: 1,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+      {
+        id: "1_ing_2",
+        recipe_id: "1",
+        ingredient: "1 tsp baking soda",
+        order_index: 2,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+      { id: "1_ing_3", recipe_id: "1", ingredient: "1 tsp salt", order_index: 3, created_at: "2024-01-15T00:00:00Z" },
+      {
+        id: "1_ing_4",
+        recipe_id: "1",
+        ingredient: "1 cup butter, softened",
+        order_index: 4,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+      {
+        id: "1_ing_5",
+        recipe_id: "1",
+        ingredient: "¾ cup granulated sugar",
+        order_index: 5,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+      {
+        id: "1_ing_6",
+        recipe_id: "1",
+        ingredient: "¾ cup packed brown sugar",
+        order_index: 6,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+      { id: "1_ing_7", recipe_id: "1", ingredient: "2 large eggs", order_index: 7, created_at: "2024-01-15T00:00:00Z" },
+      {
+        id: "1_ing_8",
+        recipe_id: "1",
+        ingredient: "2 tsp vanilla extract",
+        order_index: 8,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+      {
+        id: "1_ing_9",
+        recipe_id: "1",
+        ingredient: "2 cups chocolate chips",
+        order_index: 9,
+        created_at: "2024-01-15T00:00:00Z",
+      },
+
+      // Recipe 2 - Chicken Alfredo
+      {
+        id: "2_ing_1",
+        recipe_id: "2",
+        ingredient: "1 lb chicken breast, cubed",
+        order_index: 1,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_2",
+        recipe_id: "2",
+        ingredient: "12 oz fettuccine pasta",
+        order_index: 2,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_3",
+        recipe_id: "2",
+        ingredient: "2 cups heavy cream",
+        order_index: 3,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_4",
+        recipe_id: "2",
+        ingredient: "1 cup parmesan cheese",
+        order_index: 4,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_5",
+        recipe_id: "2",
+        ingredient: "3 cloves garlic, minced",
+        order_index: 5,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_6",
+        recipe_id: "2",
+        ingredient: "2 tbsp olive oil",
+        order_index: 6,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_7",
+        recipe_id: "2",
+        ingredient: "Salt and pepper to taste",
+        order_index: 7,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+      {
+        id: "2_ing_8",
+        recipe_id: "2",
+        ingredient: "Fresh parsley for garnish",
+        order_index: 8,
+        created_at: "2024-01-10T00:00:00Z",
+      },
+
+      // Recipe 3 - Garden Salad
+      {
+        id: "3_ing_1",
+        recipe_id: "3",
+        ingredient: "6 cups mixed greens",
+        order_index: 1,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_2",
+        recipe_id: "3",
+        ingredient: "1 cucumber, sliced",
+        order_index: 2,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_3",
+        recipe_id: "3",
+        ingredient: "2 tomatoes, chopped",
+        order_index: 3,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_4",
+        recipe_id: "3",
+        ingredient: "1 red onion, thinly sliced",
+        order_index: 4,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_5",
+        recipe_id: "3",
+        ingredient: "1 bell pepper, chopped",
+        order_index: 5,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_6",
+        recipe_id: "3",
+        ingredient: "¼ cup olive oil",
+        order_index: 6,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_7",
+        recipe_id: "3",
+        ingredient: "2 tbsp balsamic vinegar",
+        order_index: 7,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_8",
+        recipe_id: "3",
+        ingredient: "1 tsp Dijon mustard",
+        order_index: 8,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+      {
+        id: "3_ing_9",
+        recipe_id: "3",
+        ingredient: "Salt and pepper to taste",
+        order_index: 9,
+        created_at: "2024-01-05T00:00:00Z",
+      },
+    ]
+
+    // Enhanced tags for better search
+    const initialTags = [
+      // Recipe 1 tags
+      { id: "1_tag_1", recipe_id: "1", tag: "cookies", created_at: "2024-01-15T00:00:00Z" },
+      { id: "1_tag_2", recipe_id: "1", tag: "dessert", created_at: "2024-01-15T00:00:00Z" },
+      { id: "1_tag_3", recipe_id: "1", tag: "chocolate", created_at: "2024-01-15T00:00:00Z" },
+      { id: "1_tag_4", recipe_id: "1", tag: "baking", created_at: "2024-01-15T00:00:00Z" },
+      { id: "1_tag_5", recipe_id: "1", tag: "easy", created_at: "2024-01-15T00:00:00Z" },
+      { id: "1_tag_6", recipe_id: "1", tag: "sweet", created_at: "2024-01-15T00:00:00Z" },
+      { id: "1_tag_7", recipe_id: "1", tag: "comfort food", created_at: "2024-01-15T00:00:00Z" },
+
+      // Recipe 2 tags
+      { id: "2_tag_1", recipe_id: "2", tag: "chicken", created_at: "2024-01-10T00:00:00Z" },
+      { id: "2_tag_2", recipe_id: "2", tag: "pasta", created_at: "2024-01-10T00:00:00Z" },
+      { id: "2_tag_3", recipe_id: "2", tag: "one-pot", created_at: "2024-01-10T00:00:00Z" },
+      { id: "2_tag_4", recipe_id: "2", tag: "dinner", created_at: "2024-01-10T00:00:00Z" },
+      { id: "2_tag_5", recipe_id: "2", tag: "creamy", created_at: "2024-01-10T00:00:00Z" },
+      { id: "2_tag_6", recipe_id: "2", tag: "italian", created_at: "2024-01-10T00:00:00Z" },
+      { id: "2_tag_7", recipe_id: "2", tag: "comfort food", created_at: "2024-01-10T00:00:00Z" },
+
+      // Recipe 3 tags
+      { id: "3_tag_1", recipe_id: "3", tag: "salad", created_at: "2024-01-05T00:00:00Z" },
+      { id: "3_tag_2", recipe_id: "3", tag: "healthy", created_at: "2024-01-05T00:00:00Z" },
+      { id: "3_tag_3", recipe_id: "3", tag: "vegetarian", created_at: "2024-01-05T00:00:00Z" },
+      { id: "3_tag_4", recipe_id: "3", tag: "fresh", created_at: "2024-01-05T00:00:00Z" },
+      { id: "3_tag_5", recipe_id: "3", tag: "quick", created_at: "2024-01-05T00:00:00Z" },
+      { id: "3_tag_6", recipe_id: "3", tag: "light", created_at: "2024-01-05T00:00:00Z" },
+      { id: "3_tag_7", recipe_id: "3", tag: "summer", created_at: "2024-01-05T00:00:00Z" },
+    ]
+
+    localStorage.setItem("db_recipes", JSON.stringify(initialRecipes))
+    localStorage.setItem("db_users", JSON.stringify(initialUsers))
+    localStorage.setItem("db_ingredients", JSON.stringify(initialIngredients))
+    localStorage.setItem("db_tags", JSON.stringify(initialTags))
+    localStorage.setItem("db_instructions", JSON.stringify([]))
+    localStorage.setItem("db_ratings", JSON.stringify([]))
+    localStorage.setItem("db_favorites", JSON.stringify([]))
+
+    console.log("Database tables created with enhanced search data")
   }
 
   private seedData() {
-    // Data is seeded via SQL scripts
+    // Data is seeded in createTables
     console.log("Database seeded with initial data")
   }
 
