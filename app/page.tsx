@@ -20,6 +20,7 @@ import { useEffect, useState } from "react"
 import { recipeAnalytics } from "@/lib/recipe-analytics"
 import { secureDB } from "@/lib/secure-database"
 import type { DatabaseRecipe } from "@/lib/database"
+import { Footer } from "@/components/footer"
 
 const categories = [
   { name: "Recently Added", icon: Clock, count: 0, description: "Last 30 days", key: "recent" },
@@ -376,23 +377,7 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <h3 className="text-xl font-bold mb-4">JustTheDamnRecipe</h3>
-          <p className="text-gray-400 mb-4">Simple recipes, no nonsense.</p>
-          <div className="flex justify-center gap-6">
-            <Link href="/about" className="text-gray-400 hover:text-white">
-              About
-            </Link>
-            <Link href="/contact" className="text-gray-400 hover:text-white">
-              Contact
-            </Link>
-            <Link href="/privacy" className="text-gray-400 hover:text-white">
-              Privacy
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

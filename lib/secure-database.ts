@@ -507,6 +507,28 @@ class SecureDatabase {
     return newRecipe
   }
 
+  getRecipeById(recipeId: string, requesterId?: string): SecureRecipe | null {
+    const recipes = this.getSecureRecipes()
+    const recipe = recipes.find((r) => r.id === recipeId)
+
+    if (!recipe) return null
+
+    // If no requester, only show approved recipes
+    if (!requesterId) {
+      return recipe.moderation_status === "approved" && recipe.is_published ? recipe : null
+    }
+
+    const requester = this.getUserById(requesterId)
+
+    // If regular user, only show approved recipes
+    if (!requester || !this.hasPermission(requester.role, "moderator")) {
+      return recipe.moderation_status === "approved" && recipe.is_published ? recipe : null
+    }
+
+    // Moderators and above can see all recipes
+    return recipe
+  }
+
   getAllRecipes(requesterId?: string): SecureRecipe[] {
     const recipes = this.getSecureRecipes()
 
