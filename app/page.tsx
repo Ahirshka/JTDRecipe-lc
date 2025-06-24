@@ -21,15 +21,27 @@ import { recipeAnalytics } from "@/lib/recipe-analytics"
 import type { DatabaseRecipe } from "@/lib/database"
 
 const categories = [
-  { name: "Recently Added", icon: Clock, count: 0, description: "Last 30 days" },
-  { name: "Top Rated", icon: Star, count: 0, description: "Best in 60 days" },
-  { name: "Most Viewed", icon: Eye, count: 0, description: "Popular in 15 days" },
-  { name: "Trending", icon: TrendingUp, count: 0, description: "Hot in 10 days" },
+  { name: "Recently Added", icon: Clock, count: 0, description: "Last 30 days", key: "recent" },
+  { name: "Top Rated", icon: Star, count: 0, description: "Best in 60 days", key: "rated" },
+  { name: "Most Viewed", icon: Eye, count: 0, description: "Popular in 15 days", key: "viewed" },
+  { name: "Trending", icon: TrendingUp, count: 0, description: "Hot in 10 days", key: "trending" },
 ]
 
 export default function HomePage() {
   const { user, isAuthenticated, logout, loading } = useAuth()
-  const [featuredRecipes, setFeaturedRecipes] = useState<DatabaseRecipe[]>([])
+  const [allFeaturedRecipes, setAllFeaturedRecipes] = useState<{
+    recent: DatabaseRecipe[]
+    rated: DatabaseRecipe[]
+    viewed: DatabaseRecipe[]
+    trending: DatabaseRecipe[]
+  }>({
+    recent: [],
+    rated: [],
+    viewed: [],
+    trending: [],
+  })
+  const [displayedRecipes, setDisplayedRecipes] = useState<DatabaseRecipe[]>([])
+  const [activeCategory, setActiveCategory] = useState<string>("recent")
   const [categoryData, setCategoryData] = useState(categories)
   const [loadingRecipes, setLoadingRecipes] = useState(true)
 
@@ -41,19 +53,22 @@ export default function HomePage() {
 
         // Load different recipe categories
         const [recentlyAdded, topRated, mostViewed, trending] = await Promise.all([
-          recipeAnalytics.getRecentlyAddedRecipes(3),
-          recipeAnalytics.getTopRatedRecipes(3),
-          recipeAnalytics.getMostViewedRecipes(3),
-          recipeAnalytics.getTrendingRecipes(3),
+          recipeAnalytics.getRecentlyAddedRecipes(12),
+          recipeAnalytics.getTopRatedRecipes(12),
+          recipeAnalytics.getMostViewedRecipes(12),
+          recipeAnalytics.getTrendingRecipes(12),
         ])
 
-        // Combine all recipes for featured section, avoiding duplicates
-        const allFeatured = [...recentlyAdded, ...topRated, ...mostViewed, ...trending]
-        const uniqueFeatured = allFeatured.filter(
-          (recipe, index, self) => index === self.findIndex((r) => r.id === recipe.id),
-        )
+        // Store all categories of recipes
+        const categorizedRecipes = {
+          recent: recentlyAdded,
+          rated: topRated,
+          viewed: mostViewed,
+          trending: trending,
+        }
 
-        setFeaturedRecipes(uniqueFeatured.slice(0, 6))
+        setAllFeaturedRecipes(categorizedRecipes)
+        setDisplayedRecipes(recentlyAdded.slice(0, 6)) // Start with recently added
 
         // Update category counts
         setCategoryData([
@@ -72,9 +87,16 @@ export default function HomePage() {
     loadData()
   }, [])
 
-  const handleCategoryClick = async (categoryName: string) => {
+  const handleCategoryClick = async (categoryKey: string, categoryName: string) => {
     // Track interaction
     await recipeAnalytics.trackInteraction("homepage", "view", user?.id)
+
+    // Update active category
+    setActiveCategory(categoryKey)
+
+    // Update displayed recipes based on category
+    const recipesToShow = allFeaturedRecipes[categoryKey as keyof typeof allFeaturedRecipes] || []
+    setDisplayedRecipes(recipesToShow.slice(0, 6))
   }
 
   if (loading) {
@@ -176,20 +198,34 @@ export default function HomePage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Browse Categories</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {categoryData.map((category) => (
-              <Link
+              <button
                 key={category.name}
-                href={`/category/${category.name.toLowerCase().replace(" ", "-")}`}
-                onClick={() => handleCategoryClick(category.name)}
+                onClick={() => handleCategoryClick(category.key, category.name)}
+                className="w-full"
               >
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                <Card
+                  className={`hover:shadow-md transition-all cursor-pointer ${
+                    activeCategory === category.key ? "ring-2 ring-orange-500 bg-orange-50" : "hover:shadow-md"
+                  }`}
+                >
                   <CardContent className="p-6 text-center">
-                    <category.icon className="w-8 h-8 mx-auto mb-2 text-orange-600" />
-                    <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                    <category.icon
+                      className={`w-8 h-8 mx-auto mb-2 ${
+                        activeCategory === category.key ? "text-orange-600" : "text-orange-600"
+                      }`}
+                    />
+                    <h3
+                      className={`font-semibold ${
+                        activeCategory === category.key ? "text-orange-900" : "text-gray-900"
+                      }`}
+                    >
+                      {category.name}
+                    </h3>
                     <p className="text-sm text-gray-500">{category.count} recipes</p>
                     <p className="text-xs text-gray-400 mt-1">{category.description}</p>
                   </CardContent>
                 </Card>
-              </Link>
+              </button>
             ))}
           </div>
         </div>
@@ -199,7 +235,14 @@ export default function HomePage() {
       <section className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Featured Recipes</h2>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {categoryData.find((cat) => cat.key === activeCategory)?.name || "Featured Recipes"}
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {categoryData.find((cat) => cat.key === activeCategory)?.description}
+              </p>
+            </div>
             <Link href="/search">
               <Button variant="outline">View All</Button>
             </Link>
@@ -223,7 +266,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredRecipes.map((recipe) => (
+              {displayedRecipes.map((recipe) => (
                 <Link
                   key={recipe.id}
                   href={`/recipe/${recipe.id}`}
@@ -265,6 +308,12 @@ export default function HomePage() {
                   </Card>
                 </Link>
               ))}
+            </div>
+          )}
+
+          {displayedRecipes.length === 0 && !loadingRecipes && (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">No recipes found in this category.</p>
             </div>
           )}
         </div>
