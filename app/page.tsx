@@ -16,52 +16,66 @@ import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
 import { hasPermission } from "@/lib/auth"
-
-const featuredRecipes = [
-  {
-    id: 1,
-    title: "Perfect Chocolate Chip Cookies",
-    author: "BakingMaster",
-    rating: 4.9,
-    reviews: 234,
-    cookTime: "25 min",
-    views: 1250,
-    image: "/placeholder.svg?height=200&width=300",
-    category: "Desserts",
-  },
-  {
-    id: 2,
-    title: "One-Pot Chicken Alfredo",
-    author: "QuickCook",
-    rating: 4.8,
-    reviews: 189,
-    cookTime: "30 min",
-    views: 980,
-    image: "/placeholder.svg?height=200&width=300",
-    category: "Main Dishes",
-  },
-  {
-    id: 3,
-    title: "Fresh Garden Salad",
-    author: "HealthyEats",
-    rating: 4.7,
-    reviews: 156,
-    cookTime: "10 min",
-    views: 750,
-    image: "/placeholder.svg?height=200&width=300",
-    category: "Salads",
-  },
-]
+import { useEffect, useState } from "react"
+import { recipeAnalytics } from "@/lib/recipe-analytics"
+import type { DatabaseRecipe } from "@/lib/database"
 
 const categories = [
-  { name: "Recently Added", icon: Clock, count: 45 },
-  { name: "Top Rated", icon: Star, count: 23 },
-  { name: "Most Viewed", icon: Eye, count: 67 },
-  { name: "Trending", icon: TrendingUp, count: 12 },
+  { name: "Recently Added", icon: Clock, count: 0, description: "Last 30 days" },
+  { name: "Top Rated", icon: Star, count: 0, description: "Best in 60 days" },
+  { name: "Most Viewed", icon: Eye, count: 0, description: "Popular in 15 days" },
+  { name: "Trending", icon: TrendingUp, count: 0, description: "Hot in 10 days" },
 ]
 
 export default function HomePage() {
   const { user, isAuthenticated, logout, loading } = useAuth()
+  const [featuredRecipes, setFeaturedRecipes] = useState<DatabaseRecipe[]>([])
+  const [categoryData, setCategoryData] = useState(categories)
+  const [loadingRecipes, setLoadingRecipes] = useState(true)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Initialize sample interactions for demo
+        await recipeAnalytics.initializeSampleInteractions()
+
+        // Load different recipe categories
+        const [recentlyAdded, topRated, mostViewed, trending] = await Promise.all([
+          recipeAnalytics.getRecentlyAddedRecipes(3),
+          recipeAnalytics.getTopRatedRecipes(3),
+          recipeAnalytics.getMostViewedRecipes(3),
+          recipeAnalytics.getTrendingRecipes(3),
+        ])
+
+        // Combine all recipes for featured section, avoiding duplicates
+        const allFeatured = [...recentlyAdded, ...topRated, ...mostViewed, ...trending]
+        const uniqueFeatured = allFeatured.filter(
+          (recipe, index, self) => index === self.findIndex((r) => r.id === recipe.id),
+        )
+
+        setFeaturedRecipes(uniqueFeatured.slice(0, 6))
+
+        // Update category counts
+        setCategoryData([
+          { ...categories[0], count: recentlyAdded.length },
+          { ...categories[1], count: topRated.length },
+          { ...categories[2], count: mostViewed.length },
+          { ...categories[3], count: trending.length },
+        ])
+      } catch (error) {
+        console.error("Error loading homepage data:", error)
+      } finally {
+        setLoadingRecipes(false)
+      }
+    }
+
+    loadData()
+  }, [])
+
+  const handleCategoryClick = async (categoryName: string) => {
+    // Track interaction
+    await recipeAnalytics.trackInteraction("homepage", "view", user?.id)
+  }
 
   if (loading) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>
@@ -149,7 +163,9 @@ export default function HomePage() {
               placeholder="Search for recipes..."
               className="pl-10 pr-4 py-3 text-lg rounded-full border-2 border-gray-200 focus:border-orange-500"
             />
-            <Button className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-full">Search</Button>
+            <Link href="/search">
+              <Button className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-full">Search</Button>
+            </Link>
           </div>
         </div>
       </section>
@@ -159,13 +175,18 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Browse Categories</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categories.map((category) => (
-              <Link key={category.name} href={`/category/${category.name.toLowerCase().replace(" ", "-")}`}>
+            {categoryData.map((category) => (
+              <Link
+                key={category.name}
+                href={`/category/${category.name.toLowerCase().replace(" ", "-")}`}
+                onClick={() => handleCategoryClick(category.name)}
+              >
                 <Card className="hover:shadow-md transition-shadow cursor-pointer">
                   <CardContent className="p-6 text-center">
                     <category.icon className="w-8 h-8 mx-auto mb-2 text-orange-600" />
                     <h3 className="font-semibold text-gray-900">{category.name}</h3>
                     <p className="text-sm text-gray-500">{category.count} recipes</p>
+                    <p className="text-xs text-gray-400 mt-1">{category.description}</p>
                   </CardContent>
                 </Card>
               </Link>
@@ -179,51 +200,73 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-bold text-gray-900">Featured Recipes</h2>
-            <Link href="/recipes">
+            <Link href="/search">
               <Button variant="outline">View All</Button>
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredRecipes.map((recipe) => (
-              <Link key={recipe.id} href={`/recipe/${recipe.id}`}>
-                <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="relative">
-                    <Image
-                      src={recipe.image || "/placeholder.svg"}
-                      alt={recipe.title}
-                      width={300}
-                      height={200}
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
-                    <Badge className="absolute top-2 right-2 bg-white text-gray-900">{recipe.category}</Badge>
-                  </div>
+          {loadingRecipes ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <div className="h-48 bg-gray-200 rounded-t-lg"></div>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold text-lg mb-2 line-clamp-2">{recipe.title}</h3>
-                    <p className="text-sm text-gray-600 mb-3">by {recipe.author}</p>
-
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">{recipe.rating}</span>
-                        <span>({recipe.reviews})</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{recipe.cookTime}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-4 h-4" />
-                          <span>{recipe.views}</span>
-                        </div>
-                      </div>
+                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded mb-3 w-2/3"></div>
+                    <div className="flex justify-between">
+                      <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+                      <div className="h-3 bg-gray-200 rounded w-1/4"></div>
                     </div>
                   </CardContent>
                 </Card>
-              </Link>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredRecipes.map((recipe) => (
+                <Link
+                  key={recipe.id}
+                  href={`/recipe/${recipe.id}`}
+                  onClick={() => recipeAnalytics.trackInteraction(recipe.id, "view", user?.id)}
+                >
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                    <div className="relative">
+                      <Image
+                        src={recipe.image_url || "/placeholder.svg?height=200&width=300"}
+                        alt={recipe.title}
+                        width={300}
+                        height={200}
+                        className="w-full h-48 object-cover rounded-t-lg"
+                      />
+                      <Badge className="absolute top-2 right-2 bg-white text-gray-900">{recipe.category}</Badge>
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-semibold text-lg mb-2 line-clamp-2">{recipe.title}</h3>
+                      <p className="text-sm text-gray-600 mb-3">by {recipe.author_username}</p>
+
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                          <span className="font-medium">{recipe.rating.toFixed(1)}</span>
+                          <span>({recipe.review_count})</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{recipe.prep_time_minutes + recipe.cook_time_minutes}m</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Eye className="w-4 h-4" />
+                            <span>{recipe.view_count}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
