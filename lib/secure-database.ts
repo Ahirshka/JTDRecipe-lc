@@ -524,6 +524,37 @@ class SecureDatabase {
     return recipes
   }
 
+  async updateRecipe(requesterId: string, recipeId: string, updates: Partial<SecureRecipe>): Promise<boolean> {
+    const requester = this.getUserById(requesterId)
+    if (!requester || !this.hasPermission(requester.role, "moderator")) {
+      throw new Error("Insufficient permissions")
+    }
+
+    const recipes = this.getSecureRecipes()
+    const recipeIndex = recipes.findIndex((r) => r.id === recipeId)
+
+    if (recipeIndex === -1) return false
+
+    recipes[recipeIndex] = {
+      ...recipes[recipeIndex],
+      ...updates,
+      updated_at: new Date().toISOString(),
+    }
+
+    localStorage.setItem("secure_recipes", JSON.stringify(recipes))
+
+    await this.logModerationAction(
+      requesterId,
+      requester.username,
+      "recipe",
+      recipeId,
+      "recipe_updated",
+      `Recipe updated: ${Object.keys(updates).join(", ")}`,
+    )
+
+    return true
+  }
+
   async moderateRecipe(
     requesterId: string,
     recipeId: string,
@@ -543,6 +574,13 @@ class SecureDatabase {
     recipes[recipeIndex].moderation_status = status
     recipes[recipeIndex].moderation_notes = notes
     recipes[recipeIndex].updated_at = new Date().toISOString()
+
+    // If approved, set as recently added
+    if (status === "approved") {
+      recipes[recipeIndex].is_published = true
+      // Update the created_at to current time so it appears in "recently added"
+      recipes[recipeIndex].created_at = new Date().toISOString()
+    }
 
     localStorage.setItem("secure_recipes", JSON.stringify(recipes))
 
@@ -576,6 +614,30 @@ class SecureDatabase {
     )
 
     return true
+  }
+
+  getUserStatistics(requesterId: string): any {
+    const requester = this.getUserById(requesterId)
+    if (!requester || !this.hasPermission(requester.role, "moderator")) {
+      throw new Error("Insufficient permissions")
+    }
+
+    const users = this.getSecureUsers()
+    const now = new Date()
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    return {
+      total: users.length,
+      active: users.filter((u) => u.status === "active").length,
+      suspended: users.filter((u) => u.status === "suspended").length,
+      banned: users.filter((u) => u.status === "banned").length,
+      verified: users.filter((u) => u.is_verified).length,
+      socialLogins: users.filter((u) => u.provider !== "email").length,
+      newThisWeek: users.filter((u) => new Date(u.created_at) >= weekAgo).length,
+      newThisMonth: users.filter((u) => new Date(u.created_at) >= monthAgo).length,
+      loginAttemptsBlocked: users.filter((u) => u.login_attempts >= 5).length,
+    }
   }
 
   // Moderation logging

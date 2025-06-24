@@ -3,67 +3,103 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Plus, X, Upload } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Plus, X, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/contexts/auth-context"
-import { saveRecipe } from "@/lib/recipes"
-import { addRecipeToUser } from "@/lib/auth"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { secureDB } from "@/lib/secure-database"
+import { toast } from "@/hooks/use-toast"
+
+const categories = [
+  "Breakfast",
+  "Lunch",
+  "Dinner",
+  "Appetizers",
+  "Desserts",
+  "Snacks",
+  "Beverages",
+  "Salads",
+  "Soups",
+  "Vegetarian",
+  "Vegan",
+  "Gluten-Free",
+  "Quick & Easy",
+  "Healthy",
+  "Comfort Food",
+]
+
+const difficulties = ["Easy", "Medium", "Hard"]
 
 export default function AddRecipePage() {
-  const { user, isAuthenticated } = useAuth()
   const router = useRouter()
-  const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { user, isAuthenticated } = useAuth()
+  const [loading, setLoading] = useState(false)
 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     category: "",
     difficulty: "",
-    servings: "",
     prepTime: "",
     cookTime: "",
+    servings: "",
+    imageUrl: "",
   })
 
-  const [ingredients, setIngredients] = useState([""])
-  const [instructions, setInstructions] = useState([""])
+  const [ingredients, setIngredients] = useState([{ ingredient: "", amount: "", unit: "" }])
+  const [instructions, setInstructions] = useState([{ instruction: "", step_number: 1 }])
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <h2 className="text-xl font-semibold mb-4">Login Required</h2>
+            <p className="text-gray-600 mb-4">You need to be logged in to add recipes.</p>
+            <Link href="/login">
+              <Button>Login</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   const addIngredient = () => {
-    setIngredients([...ingredients, ""])
+    setIngredients([...ingredients, { ingredient: "", amount: "", unit: "" }])
   }
 
   const removeIngredient = (index: number) => {
     setIngredients(ingredients.filter((_, i) => i !== index))
   }
 
-  const updateIngredient = (index: number, value: string) => {
-    const updated = [...ingredients]
-    updated[index] = value
+  const updateIngredient = (index: number, field: string, value: string) => {
+    const updated = ingredients.map((ing, i) => (i === index ? { ...ing, [field]: value } : ing))
     setIngredients(updated)
   }
 
   const addInstruction = () => {
-    setInstructions([...instructions, ""])
+    setInstructions([...instructions, { instruction: "", step_number: instructions.length + 1 }])
   }
 
   const removeInstruction = (index: number) => {
-    setInstructions(instructions.filter((_, i) => i !== index))
+    const updated = instructions.filter((_, i) => i !== index)
+    // Renumber the steps
+    const renumbered = updated.map((inst, i) => ({ ...inst, step_number: i + 1 }))
+    setInstructions(renumbered)
   }
 
   const updateInstruction = (index: number, value: string) => {
-    const updated = [...instructions]
-    updated[index] = value
+    const updated = instructions.map((inst, i) => (i === index ? { ...inst, instruction: value } : inst))
     setInstructions(updated)
   }
 
@@ -78,128 +114,97 @@ export default function AddRecipePage() {
     setTags(tags.filter((tag) => tag !== tagToRemove))
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!isAuthenticated || !user) {
-      toast({
-        title: "Authentication required",
-        description: "Please log in to publish a recipe.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!formData.title.trim() || !formData.category) {
-      toast({
-        title: "Missing required fields",
-        description: "Please fill in the recipe title and category.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const filteredIngredients = ingredients.filter((ing) => ing.trim() !== "")
-    const filteredInstructions = instructions.filter((inst) => inst.trim() !== "")
-
-    if (filteredIngredients.length === 0 || filteredInstructions.length === 0) {
-      toast({
-        title: "Missing recipe details",
-        description: "Please add at least one ingredient and one instruction.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsSubmitting(true)
+    setLoading(true)
 
     try {
-      // Create the recipe
-      const newRecipe = saveRecipe({
-        title: formData.title.trim(),
-        description: formData.description.trim(),
+      // Validate required fields
+      if (!formData.title || !formData.category || !formData.difficulty) {
+        toast({
+          title: "Missing Information",
+          description: "Please fill in all required fields.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (ingredients.some((ing) => !ing.ingredient)) {
+        toast({
+          title: "Missing Ingredients",
+          description: "Please fill in all ingredient names.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (instructions.some((inst) => !inst.instruction)) {
+        toast({
+          title: "Missing Instructions",
+          description: "Please fill in all instruction steps.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Create recipe object
+      const recipeData = {
+        title: formData.title,
+        description: formData.description,
         category: formData.category,
-        difficulty: formData.difficulty || "Easy",
+        difficulty: formData.difficulty,
+        prep_time_minutes: Number.parseInt(formData.prepTime) || 0,
+        cook_time_minutes: Number.parseInt(formData.cookTime) || 0,
         servings: Number.parseInt(formData.servings) || 1,
-        prepTime: formData.prepTime ? `${formData.prepTime} min` : "0 min",
-        cookTime: formData.cookTime ? `${formData.cookTime} min` : "0 min",
-        ingredients: filteredIngredients,
-        instructions: filteredInstructions,
+        image_url: formData.imageUrl || null,
+        ingredients: ingredients.filter((ing) => ing.ingredient.trim()),
+        instructions: instructions.filter((inst) => inst.instruction.trim()),
         tags: tags,
-        author: user.username,
-        authorId: user.id,
-        image: "/placeholder.svg?height=400&width=600", // Default placeholder image
-      })
+        author_id: user?.id,
+        author_username: user?.username,
+        moderation_status: "pending", // All user recipes start as pending
+        is_published: false, // Not published until approved
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
 
-      // Add recipe to user's myRecipes list
-      addRecipeToUser(user.id, newRecipe.id)
+      // Submit recipe to secure database
+      const recipeId = secureDB.createRecipe(recipeData)
 
       toast({
-        title: "Recipe published!",
-        description: "Your recipe has been successfully published and is now visible to everyone.",
+        title: "Recipe Submitted!",
+        description:
+          "Your recipe has been submitted for review. It will appear on the site once approved by our moderators.",
       })
 
-      // Redirect to the new recipe page
-      router.push(`/recipe/${newRecipe.id}`)
+      // Redirect to homepage
+      router.push("/")
     } catch (error) {
-      console.error("Error publishing recipe:", error)
+      console.error("Error submitting recipe:", error)
       toast({
-        title: "Error publishing recipe",
-        description: "Something went wrong. Please try again.",
+        title: "Submission Failed",
+        description: "There was an error submitting your recipe. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-xl font-semibold mb-4">Authentication Required</h2>
-            <p className="text-gray-600 mb-4">Please log in to add a recipe.</p>
-            <Link href="/login">
-              <Button>Go to Login</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-bold text-orange-600">
-              JTDRecipe
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link href="/profile">
-                <Button variant="outline" size="sm">
-                  Profile
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Add New Recipe</h1>
-          <p className="text-gray-600">Share your favorite recipe with the community</p>
+          <Link href="/" className="inline-flex items-center text-orange-600 hover:text-orange-700 mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900">Add New Recipe</h1>
+          <p className="text-gray-600 mt-2">Share your favorite recipe with the community</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -210,9 +215,9 @@ export default function AddRecipePage() {
                 <Label htmlFor="title">Recipe Title *</Label>
                 <Input
                   id="title"
-                  placeholder="Enter recipe title"
                   value={formData.title}
-                  onChange={(e) => handleInputChange("title", e.target.value)}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="Enter recipe title"
                   required
                 />
               </div>
@@ -221,10 +226,10 @@ export default function AddRecipePage() {
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Brief description of your recipe"
                   rows={3}
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
                 />
               </div>
 
@@ -233,33 +238,36 @@ export default function AddRecipePage() {
                   <Label htmlFor="category">Category *</Label>
                   <Select
                     value={formData.category}
-                    onValueChange={(value) => handleInputChange("category", value)}
-                    required
+                    onValueChange={(value) => setFormData({ ...formData, category: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Appetizers">Appetizers</SelectItem>
-                      <SelectItem value="Main Dishes">Main Dishes</SelectItem>
-                      <SelectItem value="Desserts">Desserts</SelectItem>
-                      <SelectItem value="Salads">Salads</SelectItem>
-                      <SelectItem value="Soups">Soups</SelectItem>
-                      <SelectItem value="Beverages">Beverages</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="difficulty">Difficulty</Label>
-                  <Select value={formData.difficulty} onValueChange={(value) => handleInputChange("difficulty", value)}>
+                  <Label htmlFor="difficulty">Difficulty *</Label>
+                  <Select
+                    value={formData.difficulty}
+                    onValueChange={(value) => setFormData({ ...formData, difficulty: value })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select difficulty" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Easy">Easy</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Hard">Hard</SelectItem>
+                      {difficulties.map((difficulty) => (
+                        <SelectItem key={difficulty} value={difficulty}>
+                          {difficulty}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -269,51 +277,48 @@ export default function AddRecipePage() {
                   <Input
                     id="servings"
                     type="number"
-                    placeholder="4"
                     value={formData.servings}
-                    onChange={(e) => handleInputChange("servings", e.target.value)}
+                    onChange={(e) => setFormData({ ...formData, servings: e.target.value })}
+                    placeholder="4"
+                    min="1"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="prep-time">Prep Time (minutes)</Label>
+                  <Label htmlFor="prepTime">Prep Time (minutes)</Label>
                   <Input
-                    id="prep-time"
+                    id="prepTime"
                     type="number"
-                    placeholder="15"
                     value={formData.prepTime}
-                    onChange={(e) => handleInputChange("prepTime", e.target.value)}
+                    onChange={(e) => setFormData({ ...formData, prepTime: e.target.value })}
+                    placeholder="15"
+                    min="0"
                   />
                 </div>
+
                 <div>
-                  <Label htmlFor="cook-time">Cook Time (minutes)</Label>
+                  <Label htmlFor="cookTime">Cook Time (minutes)</Label>
                   <Input
-                    id="cook-time"
+                    id="cookTime"
                     type="number"
-                    placeholder="30"
                     value={formData.cookTime}
-                    onChange={(e) => handleInputChange("cookTime", e.target.value)}
+                    onChange={(e) => setFormData({ ...formData, cookTime: e.target.value })}
+                    placeholder="30"
+                    min="0"
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Recipe Image */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recipe Image</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-2">Upload a photo of your finished dish</p>
-                <p className="text-sm text-gray-500 mb-4">PNG, JPG up to 10MB (Coming soon)</p>
-                <Button type="button" variant="outline" disabled>
-                  Choose File
-                </Button>
+              <div>
+                <Label htmlFor="imageUrl">Image URL</Label>
+                <Input
+                  id="imageUrl"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://example.com/recipe-image.jpg"
+                />
               </div>
             </CardContent>
           </Card>
@@ -323,28 +328,45 @@ export default function AddRecipePage() {
             <CardHeader>
               <CardTitle>Ingredients</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {ingredients.map((ingredient, index) => (
-                  <div key={index} className="flex gap-2">
+            <CardContent className="space-y-4">
+              {ingredients.map((ingredient, index) => (
+                <div key={index} className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <Label>Ingredient *</Label>
                     <Input
-                      value={ingredient}
-                      onChange={(e) => updateIngredient(index, e.target.value)}
-                      placeholder={`Ingredient ${index + 1}`}
-                      className="flex-1"
+                      value={ingredient.ingredient}
+                      onChange={(e) => updateIngredient(index, "ingredient", e.target.value)}
+                      placeholder="e.g., Flour"
+                      required
                     />
-                    {ingredients.length > 1 && (
-                      <Button type="button" variant="outline" size="icon" onClick={() => removeIngredient(index)}>
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
                   </div>
-                ))}
-                <Button type="button" variant="outline" onClick={addIngredient} className="w-full">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Ingredient
-                </Button>
-              </div>
+                  <div className="w-24">
+                    <Label>Amount</Label>
+                    <Input
+                      value={ingredient.amount}
+                      onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                      placeholder="2"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <Label>Unit</Label>
+                    <Input
+                      value={ingredient.unit}
+                      onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                      placeholder="cups"
+                    />
+                  </div>
+                  {ingredients.length > 1 && (
+                    <Button type="button" variant="outline" size="icon" onClick={() => removeIngredient(index)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addIngredient} className="w-full">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Ingredient
+              </Button>
             </CardContent>
           </Card>
 
@@ -353,38 +375,38 @@ export default function AddRecipePage() {
             <CardHeader>
               <CardTitle>Instructions</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {instructions.map((instruction, index) => (
-                  <div key={index} className="flex gap-2">
-                    <span className="flex-shrink-0 w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-medium mt-1">
-                      {index + 1}
-                    </span>
-                    <Textarea
-                      value={instruction}
-                      onChange={(e) => updateInstruction(index, e.target.value)}
-                      placeholder={`Step ${index + 1}`}
-                      className="flex-1"
-                      rows={2}
-                    />
-                    {instructions.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeInstruction(index)}
-                        className="mt-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
+            <CardContent className="space-y-4">
+              {instructions.map((instruction, index) => (
+                <div key={index} className="flex gap-2 items-start">
+                  <div className="w-12 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 font-semibold mt-1">
+                    {index + 1}
                   </div>
-                ))}
-                <Button type="button" variant="outline" onClick={addInstruction} className="w-full">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Step
-                </Button>
-              </div>
+                  <div className="flex-1">
+                    <Textarea
+                      value={instruction.instruction}
+                      onChange={(e) => updateInstruction(index, e.target.value)}
+                      placeholder="Describe this step..."
+                      rows={2}
+                      required
+                    />
+                  </div>
+                  {instructions.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => removeInstruction(index)}
+                      className="mt-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button type="button" variant="outline" onClick={addInstruction} className="w-full">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Step
+              </Button>
             </CardContent>
           </Card>
 
@@ -393,40 +415,42 @@ export default function AddRecipePage() {
             <CardHeader>
               <CardTitle>Tags</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    placeholder="Add a tag"
-                    onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-                  />
-                  <Button type="button" onClick={addTag}>
-                    Add
-                  </Button>
-                </div>
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="cursor-pointer">
-                        {tag}
-                        <X className="w-3 h-3 ml-1" onClick={() => removeTag(tag)} />
-                      </Badge>
-                    ))}
-                  </div>
-                )}
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="Add a tag"
+                  onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
+                />
+                <Button type="button" onClick={addTag}>
+                  Add
+                </Button>
               </div>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                      {tag}
+                      <button type="button" onClick={() => removeTag(tag)} className="ml-1 hover:text-red-600">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {/* Submit */}
-          <div className="flex gap-4">
-            <Button type="submit" className="flex-1" disabled={isSubmitting}>
-              {isSubmitting ? "Publishing..." : "Publish Recipe"}
-            </Button>
-            <Button type="button" variant="outline" disabled>
-              Save as Draft
+          <div className="flex justify-end gap-4">
+            <Link href="/">
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </Link>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Submitting..." : "Submit Recipe"}
             </Button>
           </div>
         </form>

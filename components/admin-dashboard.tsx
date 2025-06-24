@@ -37,6 +37,19 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
   const [suspensionDays, setSuspensionDays] = useState("7")
   const [newRole, setNewRole] = useState<UserRole>("user")
   const [message, setMessage] = useState("")
+  const [newCategoryName, setNewCategoryName] = useState("")
+  const [availableCategories, setAvailableCategories] = useState<string[]>([
+    "Appetizers",
+    "Main Dishes",
+    "Desserts",
+    "Salads",
+    "Soups",
+    "Beverages",
+    "Breakfast",
+    "Snacks",
+  ])
+  const [selectedRecipeForCategory, setSelectedRecipeForCategory] = useState<SecureRecipe | null>(null)
+  const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -221,10 +234,43 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
     activeUsers: users.filter((u) => u.status === "active").length,
     suspendedUsers: users.filter((u) => u.status === "suspended").length,
     bannedUsers: users.filter((u) => u.status === "banned").length,
+    newUsersThisWeek: users.filter((u) => {
+      const userDate = new Date(u.created_at)
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      return userDate >= weekAgo
+    }).length,
     totalRecipes: recipes.length,
     pendingRecipes: recipes.filter((r) => r.moderation_status === "pending").length,
     approvedRecipes: recipes.filter((r) => r.moderation_status === "approved").length,
     rejectedRecipes: recipes.filter((r) => r.moderation_status === "rejected").length,
+    socialLogins: users.filter((u) => u.provider !== "email").length,
+    verifiedUsers: users.filter((u) => u.is_verified).length,
+  }
+
+  const addNewCategory = () => {
+    if (newCategoryName.trim() && !availableCategories.includes(newCategoryName.trim())) {
+      setAvailableCategories([...availableCategories, newCategoryName.trim()])
+      setNewCategoryName("")
+      setMessage("Category added successfully")
+      setTimeout(() => setMessage(""), 3000)
+    }
+  }
+
+  const updateRecipeCategory = async (recipeId: string, newCategory: string) => {
+    try {
+      const success = await secureDB.updateRecipe(currentUser.id, recipeId, { category: newCategory })
+      if (success) {
+        setMessage("Recipe category updated successfully")
+        loadData()
+        setIsCategoryDialogOpen(false)
+      } else {
+        setMessage("Failed to update recipe category")
+      }
+    } catch (error) {
+      setMessage("Error: " + (error as Error).message)
+    }
+    setTimeout(() => setMessage(""), 3000)
   }
 
   return (
@@ -280,6 +326,18 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
               <div>
                 <p className="text-sm text-gray-600">Pending Review</p>
                 <p className="text-2xl font-bold">{stats.pendingRecipes}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-600" />
+              <div>
+                <p className="text-sm text-gray-600">New This Week</p>
+                <p className="text-2xl font-bold">{stats.newUsersThisWeek}</p>
               </div>
             </div>
           </CardContent>
@@ -512,6 +570,19 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
                           <Trash2 className="w-4 h-4" />
                         </Button>
 
+                        {(currentUser.role === "admin" || currentUser.role === "owner") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedRecipeForCategory(recipe)
+                              setIsCategoryDialogOpen(true)
+                            }}
+                          >
+                            <Shield className="w-4 h-4" />
+                          </Button>
+                        )}
+
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button size="sm" variant="outline">
@@ -592,6 +663,30 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
                     <p className="text-sm text-gray-600">• Max login attempts: 5</p>
                     <p className="text-sm text-gray-600">• Account lockout duration: 30 minutes</p>
                   </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Category Management</h3>
+                  {(currentUser.role === "admin" || currentUser.role === "owner") && (
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="New category name"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          onKeyPress={(e) => e.key === "Enter" && addNewCategory()}
+                        />
+                        <Button onClick={addNewCategory}>Add Category</Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {availableCategories.map((category) => (
+                          <Badge key={category} variant="outline">
+                            {category}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -711,6 +806,48 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
                 Cancel
               </Button>
               <Button onClick={executeRecipeAction}>Confirm</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Management Dialog */}
+      <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Recipe Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedRecipeForCategory && (
+              <div className="flex items-center gap-2">
+                <ChefHat className="w-8 h-8" />
+                <span className="font-medium">{selectedRecipeForCategory.title}</span>
+              </div>
+            )}
+            <div>
+              <Label>Category</Label>
+              <Select
+                defaultValue={selectedRecipeForCategory?.category}
+                onValueChange={(value) =>
+                  selectedRecipeForCategory && updateRecipeCategory(selectedRecipeForCategory.id, value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsCategoryDialogOpen(false)}>
+                Cancel
+              </Button>
             </div>
           </div>
         </DialogContent>

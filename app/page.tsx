@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { hasPermission } from "@/lib/auth"
 import { useEffect, useState } from "react"
 import { recipeAnalytics } from "@/lib/recipe-analytics"
+import { secureDB } from "@/lib/secure-database"
 import type { DatabaseRecipe } from "@/lib/database"
 
 const categories = [
@@ -51,12 +52,36 @@ export default function HomePage() {
         // Initialize sample interactions for demo
         await recipeAnalytics.initializeSampleInteractions()
 
-        // Load different recipe categories
+        // Get all recipes and filter only approved ones
+        const allRecipes = secureDB.getAllRecipes()
+        const approvedRecipes = allRecipes.filter(
+          (recipe) => recipe.moderation_status === "approved" && recipe.is_published,
+        )
+
+        // Load different recipe categories from approved recipes only
         const [recentlyAdded, topRated, mostViewed, trending] = await Promise.all([
-          recipeAnalytics.getRecentlyAddedRecipes(12),
-          recipeAnalytics.getTopRatedRecipes(12),
-          recipeAnalytics.getMostViewedRecipes(12),
-          recipeAnalytics.getTrendingRecipes(12),
+          Promise.resolve(
+            approvedRecipes
+              .filter((recipe) => {
+                const recipeDate = new Date(recipe.created_at)
+                const thirtyDaysAgo = new Date()
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+                return recipeDate >= thirtyDaysAgo
+              })
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice(0, 12),
+          ),
+          Promise.resolve([...approvedRecipes].sort((a, b) => b.rating - a.rating).slice(0, 12)),
+          Promise.resolve([...approvedRecipes].sort((a, b) => b.view_count - a.view_count).slice(0, 12)),
+          Promise.resolve(
+            [...approvedRecipes]
+              .sort((a, b) => {
+                const aScore = a.view_count * 0.3 + a.rating * a.review_count * 0.7
+                const bScore = b.view_count * 0.3 + b.rating * b.review_count * 0.7
+                return bScore - aScore
+              })
+              .slice(0, 12),
+          ),
         ])
 
         // Store all categories of recipes
@@ -79,6 +104,30 @@ export default function HomePage() {
         ])
       } catch (error) {
         console.error("Error loading homepage data:", error)
+        // Fallback to original analytics if secure DB fails
+        const [recentlyAdded, topRated, mostViewed, trending] = await Promise.all([
+          recipeAnalytics.getRecentlyAddedRecipes(12),
+          recipeAnalytics.getTopRatedRecipes(12),
+          recipeAnalytics.getMostViewedRecipes(12),
+          recipeAnalytics.getTrendingRecipes(12),
+        ])
+
+        const categorizedRecipes = {
+          recent: recentlyAdded,
+          rated: topRated,
+          viewed: mostViewed,
+          trending: trending,
+        }
+
+        setAllFeaturedRecipes(categorizedRecipes)
+        setDisplayedRecipes(recentlyAdded.slice(0, 6))
+
+        setCategoryData([
+          { ...categories[0], count: recentlyAdded.length },
+          { ...categories[1], count: topRated.length },
+          { ...categories[2], count: mostViewed.length },
+          { ...categories[3], count: trending.length },
+        ])
       } finally {
         setLoadingRecipes(false)
       }
@@ -313,7 +362,14 @@ export default function HomePage() {
 
           {displayedRecipes.length === 0 && !loadingRecipes && (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No recipes found in this category.</p>
+              <p className="text-gray-500 text-lg">No approved recipes found in this category.</p>
+              {hasPermission(user?.role || "user", "moderator") && (
+                <p className="text-orange-600 mt-2">
+                  <Link href="/admin" className="underline">
+                    Check the admin panel for pending recipes
+                  </Link>
+                </p>
+              )}
             </div>
           )}
         </div>
