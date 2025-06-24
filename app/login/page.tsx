@@ -13,33 +13,14 @@ import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { useAuth } from "@/contexts/auth-context"
 import { saveUser, findUser, findUserByEmail } from "@/lib/auth"
-import { socialProviders } from "@/lib/social-auth"
-import { SocialLoginButton } from "@/components/social-login-button"
+import { GoogleLoginButton } from "@/components/google-login-button"
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const { login, loginWithSocial } = useAuth()
+  const { login } = useAuth()
   const router = useRouter()
-
-  const handleSocialLogin = async (provider: string) => {
-    setIsLoading(true)
-    setError("")
-
-    try {
-      const success = await loginWithSocial(provider)
-      if (success) {
-        router.push("/")
-      } else {
-        setError(`Failed to login with ${provider}. Please try again.`)
-      }
-    } catch (error) {
-      setError(`An error occurred during ${provider} login`)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -107,6 +88,8 @@ export default function LoginPage() {
         email,
         password,
         provider: "email",
+        role: "user",
+        status: "active",
       })
 
       login(newUser)
@@ -151,17 +134,8 @@ export default function LoginPage() {
                   </Alert>
                 )}
 
-                {/* Social Login Buttons */}
-                <div className="space-y-3">
-                  {socialProviders.map((provider) => (
-                    <SocialLoginButton
-                      key={provider.id}
-                      provider={provider}
-                      onLogin={handleSocialLogin}
-                      disabled={isLoading}
-                    />
-                  ))}
-                </div>
+                {/* Google Login Button */}
+                <GoogleLoginButton disabled={isLoading} />
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -217,17 +191,8 @@ export default function LoginPage() {
                   </Alert>
                 )}
 
-                {/* Social Signup Buttons */}
-                <div className="space-y-3">
-                  {socialProviders.map((provider) => (
-                    <SocialLoginButton
-                      key={provider.id}
-                      provider={provider}
-                      onLogin={handleSocialLogin}
-                      disabled={isLoading}
-                    />
-                  ))}
-                </div>
+                {/* Google Signup Button */}
+                <GoogleLoginButton disabled={isLoading} />
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">

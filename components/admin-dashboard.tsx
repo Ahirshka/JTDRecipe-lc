@@ -50,6 +50,7 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
   ])
   const [selectedRecipeForCategory, setSelectedRecipeForCategory] = useState<SecureRecipe | null>(null)
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false)
+  const [recipeFilter, setRecipeFilter] = useState<string>("all")
 
   useEffect(() => {
     loadData()
@@ -61,7 +62,7 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
 
   useEffect(() => {
     filterRecipes()
-  }, [recipes, recipeSearchTerm])
+  }, [recipes, recipeSearchTerm, recipeFilter])
 
   const loadData = async () => {
     try {
@@ -90,11 +91,14 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
 
   const filterRecipes = () => {
     const filtered = recipes.filter((recipe) => {
-      return (
+      const matchesSearch =
         recipe.title.toLowerCase().includes(recipeSearchTerm.toLowerCase()) ||
         recipe.description?.toLowerCase().includes(recipeSearchTerm.toLowerCase()) ||
         recipe.author_username?.toLowerCase().includes(recipeSearchTerm.toLowerCase())
-      )
+
+      const matchesFilter = recipeFilter === "all" || recipe.moderation_status === recipeFilter
+
+      return matchesSearch && matchesFilter
     })
 
     setFilteredRecipes(filtered)
@@ -281,6 +285,32 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
         </Alert>
       )}
 
+      {stats.pendingRecipes > 0 && (
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <Clock className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              You have {stats.pendingRecipes} recipe{stats.pendingRecipes !== 1 ? "s" : ""} waiting for review
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const recipesTab = document.querySelector('[data-value="recipes"]') as HTMLElement
+                if (recipesTab) {
+                  recipesTab.click()
+                  setTimeout(() => {
+                    setRecipeFilter("pending")
+                  }, 100)
+                }
+              }}
+            >
+              Review Now
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -319,13 +349,28 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => {
+            // Switch to recipes tab and filter to pending
+            const recipesTab = document.querySelector('[value="recipes"]') as HTMLElement
+            if (recipesTab) {
+              recipesTab.click()
+              // Filter to show only pending recipes
+              setTimeout(() => {
+                setRecipeSearchTerm("")
+                setFilteredRecipes(recipes.filter((r) => r.moderation_status === "pending"))
+              }, 100)
+            }
+          }}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-600" />
               <div>
                 <p className="text-sm text-gray-600">Pending Review</p>
                 <p className="text-2xl font-bold">{stats.pendingRecipes}</p>
+                <p className="text-xs text-blue-600 mt-1">Click to review →</p>
               </div>
             </div>
           </CardContent>
@@ -520,6 +565,17 @@ export function AdminDashboard({ currentUser }: AdminDashboardProps) {
                     />
                   </div>
                 </div>
+                <Select value={recipeFilter} onValueChange={setRecipeFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Recipes</SelectItem>
+                    <SelectItem value="pending">Pending Review</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-4">
