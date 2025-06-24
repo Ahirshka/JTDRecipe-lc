@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { useAuth } from "@/contexts/auth-context"
 import { saveUser, findUser, findUserByEmail } from "@/lib/auth"
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
 
@@ -62,6 +64,11 @@ export default function LoginPage() {
       // Validation
       if (!username || !email || !password || !confirmPassword) {
         setError("All fields are required")
+        return
+      }
+
+      if (!acceptedTerms) {
+        setError("You must accept the Terms of Service and Privacy Policy to create an account")
         return
       }
 
@@ -221,10 +228,31 @@ export default function LoginPage() {
                     <Label htmlFor="confirm-password">Confirm Password</Label>
                     <Input id="confirm-password" name="confirm-password" type="password" required />
                   </div>
+
+                  {/* Terms and Privacy Agreement */}
+                  <div className="flex items-start space-x-2">
+                    <Checkbox
+                      id="terms"
+                      checked={acceptedTerms}
+                      onCheckedChange={(checked) => setAcceptedTerms(checked as boolean)}
+                      className="mt-1"
+                    />
+                    <Label htmlFor="terms" className="text-sm leading-relaxed">
+                      I agree to the{" "}
+                      <Link href="/terms" target="_blank" className="text-orange-600 hover:underline">
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link href="/privacy" target="_blank" className="text-orange-600 hover:underline">
+                        Privacy Policy
+                      </Link>
+                    </Label>
+                  </div>
+
                   <Button
                     type="submit"
                     className="w-full bg-orange-400 hover:bg-orange-500 text-white"
-                    disabled={isLoading}
+                    disabled={isLoading || !acceptedTerms}
                   >
                     {isLoading ? "Creating account..." : "Create Account"}
                   </Button>
