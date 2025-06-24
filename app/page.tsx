@@ -72,13 +72,14 @@ export default function HomePage() {
       try {
         // Fetch recipes from API route
         const response = await fetch("/api/recipes")
-        const data = await response.json()
 
         if (!response.ok) {
-          throw new Error(data.error || "Failed to fetch recipes")
+          console.error(`HTTP error! status: ${response.status}`)
+          throw new Error(`HTTP error! status: ${response.status}`)
         }
 
-        const allRecipes = data.recipes || []
+        const data = await response.json()
+        const allRecipes = Array.isArray(data) ? data : data.recipes || []
 
         // Calculate date ranges
         const now = new Date()
@@ -122,6 +123,14 @@ export default function HomePage() {
         ])
       } catch (error) {
         console.error("Error loading homepage data:", error)
+        // Set empty data on error
+        setAllFeaturedRecipes({
+          recent: [],
+          rated: [],
+          viewed: [],
+          trending: [],
+        })
+        setDisplayedRecipes([])
       } finally {
         setLoadingRecipes(false)
       }
