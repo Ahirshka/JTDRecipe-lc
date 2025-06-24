@@ -139,14 +139,64 @@ export const mockRecipes: Recipe[] = [
   },
 ]
 
+// Get all recipes from localStorage, including user-created ones
+const getAllStoredRecipes = (): Recipe[] => {
+  if (typeof window === "undefined") return mockRecipes
+  const storedRecipes = localStorage.getItem("user_recipes")
+  const userRecipes = storedRecipes ? JSON.parse(storedRecipes) : []
+  return [...mockRecipes, ...userRecipes]
+}
+
+// Save a new recipe to localStorage
+export const saveRecipe = (recipeData: Omit<Recipe, "id" | "dateAdded" | "rating" | "reviews" | "views">): Recipe => {
+  const newRecipe: Recipe = {
+    ...recipeData,
+    id: Date.now().toString(),
+    dateAdded: new Date().toISOString(),
+    rating: 0,
+    reviews: 0,
+    views: 0,
+  }
+
+  const storedRecipes = localStorage.getItem("user_recipes")
+  const userRecipes = storedRecipes ? JSON.parse(storedRecipes) : []
+  userRecipes.push(newRecipe)
+  localStorage.setItem("user_recipes", JSON.stringify(userRecipes))
+
+  return newRecipe
+}
+
 export const getRecipeById = (id: string): Recipe | null => {
-  return mockRecipes.find((recipe) => recipe.id === id) || null
+  const allRecipes = getAllStoredRecipes()
+  return allRecipes.find((recipe) => recipe.id === id) || null
 }
 
 export const getAllRecipes = (): Recipe[] => {
-  return mockRecipes
+  return getAllStoredRecipes()
 }
 
 export const getRecipesByIds = (ids: string[]): Recipe[] => {
-  return mockRecipes.filter((recipe) => ids.includes(recipe.id))
+  const allRecipes = getAllStoredRecipes()
+  return allRecipes.filter((recipe) => ids.includes(recipe.id))
+}
+
+export const getRecipesByAuthorId = (authorId: string): Recipe[] => {
+  const allRecipes = getAllStoredRecipes()
+  return allRecipes.filter((recipe) => recipe.authorId === authorId)
+}
+
+export const updateRecipeViews = (recipeId: string): void => {
+  const recipe = getRecipeById(recipeId)
+  if (!recipe) return
+
+  // For mock recipes, we can't update them, but for user recipes we can
+  const storedRecipes = localStorage.getItem("user_recipes")
+  if (storedRecipes) {
+    const userRecipes = JSON.parse(storedRecipes)
+    const recipeIndex = userRecipes.findIndex((r: Recipe) => r.id === recipeId)
+    if (recipeIndex !== -1) {
+      userRecipes[recipeIndex].views += 1
+      localStorage.setItem("user_recipes", JSON.stringify(userRecipes))
+    }
+  }
 }

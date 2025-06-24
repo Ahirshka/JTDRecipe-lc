@@ -14,6 +14,7 @@ export interface User {
   moderationNotes?: ModerationNote[]
   favorites: string[]
   ratings: UserRating[]
+  myRecipes: string[] // Add this field to track user's created recipes
   // Moderation fields
   isVerified: boolean
   isSuspended: boolean
@@ -68,7 +69,15 @@ export const canModerateUser = (moderatorRole: UserRole, targetRole: UserRole): 
 export const saveUser = (
   userData: Omit<
     User,
-    "id" | "createdAt" | "updatedAt" | "favorites" | "ratings" | "isVerified" | "isSuspended" | "warningCount"
+    | "id"
+    | "createdAt"
+    | "updatedAt"
+    | "favorites"
+    | "ratings"
+    | "myRecipes"
+    | "isVerified"
+    | "isSuspended"
+    | "warningCount"
   >,
 ): User => {
   const users = getUsers()
@@ -79,6 +88,7 @@ export const saveUser = (
     updatedAt: new Date().toISOString(),
     favorites: [],
     ratings: [],
+    myRecipes: [],
     isVerified: false,
     isSuspended: false,
     warningCount: 0,
@@ -147,6 +157,7 @@ export const saveSocialUser = (socialData: {
     lastLoginAt: new Date().toISOString(),
     favorites: [],
     ratings: [],
+    myRecipes: [],
     isVerified: false,
     isSuspended: false,
     warningCount: 0,
@@ -233,6 +244,20 @@ export const setCurrentUser = (user: User | null): void => {
 
 export const logout = (): void => {
   localStorage.removeItem("current_user")
+}
+
+// Add recipe to user's myRecipes list
+export const addRecipeToUser = (userId: string, recipeId: string): boolean => {
+  const user = findUserById(userId)
+  if (!user) return false
+
+  const myRecipes = user.myRecipes || []
+  if (!myRecipes.includes(recipeId)) {
+    const updatedRecipes = [...myRecipes, recipeId]
+    updateUser(userId, { myRecipes: updatedRecipes })
+    return true
+  }
+  return false
 }
 
 // Moderation functions
@@ -363,6 +388,7 @@ export const initializeOwnerAccount = (): void => {
       updatedAt: new Date().toISOString(),
       favorites: [],
       ratings: [],
+      myRecipes: [],
       isVerified: true,
       isSuspended: false,
       warningCount: 0,
