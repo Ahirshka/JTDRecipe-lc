@@ -3,7 +3,10 @@ export interface SocialProvider {
   name: string
   icon: string
   color: string
+  textColor?: string
+  hoverColor?: string
   logo?: string
+  gradient?: string
 }
 
 export interface SocialUser {
@@ -19,29 +22,34 @@ export const socialProviders: SocialProvider[] = [
     id: "google",
     name: "Google",
     icon: "🔍",
-    color: "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300",
-    logo: "/logos/google-logo.png",
+    color: "#ffffff",
+    textColor: "text-gray-700",
+    hoverColor: "hover:bg-gray-50",
   },
   {
     id: "facebook",
     name: "Facebook",
     icon: "📘",
-    color: "bg-blue-600 hover:bg-blue-700",
-    logo: "/logos/facebook-logo.png",
+    color: "#1877F2",
+    textColor: "text-white",
+    hoverColor: "hover:bg-blue-700",
   },
   {
     id: "instagram",
     name: "Instagram",
     icon: "📷",
-    color: "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600",
-    logo: "/logos/instagram-logo.png",
+    color: "#E4405F",
+    textColor: "text-white",
+    gradient: "linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)",
+    hoverColor: "hover:opacity-90",
   },
   {
     id: "tiktok",
     name: "TikTok",
     icon: "🎵",
-    color: "bg-black hover:bg-gray-800",
-    logo: "/logos/tiktok-logo.png",
+    color: "#000000",
+    textColor: "text-white",
+    hoverColor: "hover:bg-gray-900",
   },
 ]
 
