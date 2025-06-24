@@ -26,11 +26,11 @@ export interface GoogleTokenResponse {
   id_token: string
 }
 
-// Google OAuth Configuration
+// Google OAuth Configuration - Updated to use the new redirect URI
 export const googleConfig: GoogleOAuthConfig = {
   clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
   clientSecret: process.env.GOOGLE_CLIENT_SECRET || "YOUR_GOOGLE_CLIENT_SECRET",
-  redirectUri: `${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/auth/callback/google`,
+  redirectUri: "https://www.justthedamnrecipe.net/oauth",
   scope: [
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
@@ -38,7 +38,7 @@ export const googleConfig: GoogleOAuthConfig = {
   ],
 }
 
-// Generate Google OAuth URL
+// Generate Google OAuth URL with provider parameter
 export const getGoogleAuthUrl = (): string => {
   const params = new URLSearchParams({
     client_id: googleConfig.clientId,
@@ -47,10 +47,10 @@ export const getGoogleAuthUrl = (): string => {
     scope: googleConfig.scope.join(" "),
     access_type: "offline",
     prompt: "consent",
-    state: generateRandomState(),
+    state: generateRandomState() + "|google", // Include provider in state
   })
 
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}&provider=google`
 }
 
 // Generate random state for CSRF protection
@@ -130,5 +130,9 @@ export const initializeGoogleAuth = () => {
 export const verifyOAuthState = (receivedState: string): boolean => {
   const storedState = sessionStorage.getItem("google_oauth_state")
   sessionStorage.removeItem("google_oauth_state")
-  return storedState === receivedState
+
+  // Extract the state part (before the pipe if provider is included)
+  const stateOnly = receivedState.split("|")[0]
+
+  return storedState === stateOnly
 }
