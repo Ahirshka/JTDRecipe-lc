@@ -10,11 +10,24 @@ export async function POST() {
     })
   } catch (error) {
     console.error("Database initialization failed:", error)
+
+    // Fix: Proper error handling without 'in' operator
+    let errorMessage = "Unknown error"
+    if (error) {
+      if (typeof error === "string") {
+        errorMessage = error
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === "object" && error !== null) {
+        errorMessage = String(error)
+      }
+    }
+
     return NextResponse.json(
       {
         success: false,
         error: "Failed to initialize database",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: errorMessage,
       },
       { status: 500 },
     )

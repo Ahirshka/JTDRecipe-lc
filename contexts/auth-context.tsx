@@ -15,7 +15,9 @@ export interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
+  isAuthenticated: boolean
   refreshUser: () => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -29,11 +31,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch("/api/auth/me", {
         credentials: "include",
       })
-      const data = await response.json()
-      setUser(data.user)
+
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+      } else {
+        setUser(null)
+      }
     } catch (error) {
       console.error("Failed to refresh user:", error)
       setUser(null)
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      })
+      setUser(null)
+    } catch (error) {
+      console.error("Logout error:", error)
     }
   }
 
@@ -50,7 +69,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         loading,
+        isAuthenticated: !!user,
         refreshUser,
+        logout,
       }}
     >
       {children}

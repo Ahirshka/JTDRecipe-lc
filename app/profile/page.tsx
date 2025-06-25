@@ -70,9 +70,12 @@ export default function ProfilePage() {
                   Add Recipe
                 </Button>
               </Link>
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4" />
-              </Button>
+              <Link href="/profile/settings">
+                <Button variant="outline" size="sm">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

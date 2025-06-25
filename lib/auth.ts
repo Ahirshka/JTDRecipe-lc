@@ -2,20 +2,19 @@ export interface User {
   id: string
   username: string
   email: string
-  password?: string // Optional for social logins
+  password?: string
   avatar?: string
-  provider?: string // 'email', 'google', 'facebook', 'instagram', 'tiktok'
-  socialId?: string // ID from social provider
-  role: UserRole // New role field
-  status: UserStatus // New status field
+  provider?: string
+  socialId?: string
+  role: UserRole
+  status: UserStatus
   createdAt: string
   updatedAt: string
   lastLoginAt?: string
   moderationNotes?: ModerationNote[]
   favorites: string[]
   ratings: UserRating[]
-  myRecipes: string[] // Add this field to track user's created recipes
-  // Moderation fields
+  myRecipes: string[]
   isVerified: boolean
   isSuspended: boolean
   suspensionReason?: string
@@ -48,21 +47,133 @@ export interface AuthState {
   user: User | null
 }
 
-// Role hierarchy for permission checking
+// Define role hierarchy with explicit levels
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
-  user: 0,
-  moderator: 1,
-  admin: 2,
-  owner: 3,
+  user: 1,
+  moderator: 2,
+  admin: 3,
+  owner: 4,
+} as const
+
+// Define role permissions
+export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  user: ["view_recipes", "create_recipes", "rate_recipes", "favorite_recipes"],
+  moderator: [
+    "view_recipes",
+    "create_recipes",
+    "rate_recipes",
+    "favorite_recipes",
+    "moderate_recipes",
+    "moderate_comments",
+    "view_reports",
+  ],
+  admin: [
+    "view_recipes",
+    "create_recipes",
+    "rate_recipes",
+    "favorite_recipes",
+    "moderate_recipes",
+    "moderate_comments",
+    "view_reports",
+    "manage_users",
+    "manage_categories",
+    "view_analytics",
+  ],
+  owner: [
+    "view_recipes",
+    "create_recipes",
+    "rate_recipes",
+    "favorite_recipes",
+    "moderate_recipes",
+    "moderate_comments",
+    "view_reports",
+    "manage_users",
+    "manage_categories",
+    "view_analytics",
+    "manage_system",
+    "manage_admins",
+  ],
+} as const
+
+// Permission checking functions with proper error handling
+export const hasPermission = (userRole: UserRole | string | undefined, requiredRole: UserRole | string): boolean => {
+  // Handle undefined or null roles
+  if (!userRole || !requiredRole) {
+    return false
+  }
+
+  // Ensure roles are valid
+  const validRoles: UserRole[] = ["user", "moderator", "admin", "owner"]
+
+  if (!validRoles.includes(userRole as UserRole) || !validRoles.includes(requiredRole as UserRole)) {
+    return false
+  }
+
+  const userLevel = ROLE_HIERARCHY[userRole as UserRole] || 0
+  const requiredLevel = ROLE_HIERARCHY[requiredRole as UserRole] || 0
+
+  return userLevel >= requiredLevel
 }
 
-// Permission checking functions
-export const hasPermission = (userRole: UserRole, requiredRole: UserRole): boolean => {
-  return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole]
+export const canModerateUser = (
+  moderatorRole: UserRole | string | undefined,
+  targetRole: UserRole | string | undefined,
+): boolean => {
+  // Handle undefined roles
+  if (!moderatorRole || !targetRole) {
+    return false
+  }
+
+  const validRoles: UserRole[] = ["user", "moderator", "admin", "owner"]
+
+  if (!validRoles.includes(moderatorRole as UserRole) || !validRoles.includes(targetRole as UserRole)) {
+    return false
+  }
+
+  const moderatorLevel = ROLE_HIERARCHY[moderatorRole as UserRole] || 0
+  const targetLevel = ROLE_HIERARCHY[targetRole as UserRole] || 0
+
+  return moderatorLevel > targetLevel
 }
 
-export const canModerateUser = (moderatorRole: UserRole, targetRole: UserRole): boolean => {
-  return ROLE_HIERARCHY[moderatorRole] > ROLE_HIERARCHY[targetRole]
+// Check if user has specific permission
+export const hasSpecificPermission = (userRole: UserRole | string | undefined, permission: string): boolean => {
+  if (!userRole) {
+    return false
+  }
+
+  const validRoles: UserRole[] = ["user", "moderator", "admin", "owner"]
+
+  if (!validRoles.includes(userRole as UserRole)) {
+    return false
+  }
+
+  const permissions = ROLE_PERMISSIONS[userRole as UserRole] || []
+  return permissions.includes(permission)
+}
+
+// Get user role level
+export const getRoleLevel = (role: UserRole | string | undefined): number => {
+  if (!role) {
+    return 0
+  }
+
+  return ROLE_HIERARCHY[role as UserRole] || 0
+}
+
+// Check if role is valid
+export const isValidRole = (role: string | undefined): role is UserRole => {
+  if (!role) {
+    return false
+  }
+
+  const validRoles: UserRole[] = ["user", "moderator", "admin", "owner"]
+  return validRoles.includes(role as UserRole)
+}
+
+// Get default role
+export const getDefaultRole = (): UserRole => {
+  return "user"
 }
 
 // Simple storage functions (in production, use a proper database)
@@ -97,74 +208,9 @@ export const saveUser = (
   }
 
   users.push(newUser)
-  localStorage.setItem("recipe_users", JSON.stringify(users))
-  return newUser
-}
-
-export const saveSocialUser = (socialData: {
-  email: string
-  username: string
-  avatar?: string
-  provider: string
-  socialId: string
-}): User => {
-  const users = getUsers()
-
-  // Check if user already exists with this social account
-  const existingUser = users.find(
-    (user) => user.socialId === socialData.socialId && user.provider === socialData.provider,
-  )
-
-  if (existingUser) {
-    // Update last login
-    existingUser.lastLoginAt = new Date().toISOString()
-    existingUser.updatedAt = new Date().toISOString()
-    updateUser(existingUser.id, existingUser)
-    return existingUser
-  }
-
-  // Check if user exists with same email but different provider
-  const emailUser = users.find((user) => user.email === socialData.email)
-  if (emailUser) {
-    // Link social account to existing email account
-    const updatedUser = {
-      ...emailUser,
-      provider: socialData.provider,
-      socialId: socialData.socialId,
-      avatar: socialData.avatar || emailUser.avatar,
-      lastLoginAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    const userIndex = users.findIndex((user) => user.id === emailUser.id)
-    users[userIndex] = updatedUser
+  if (typeof window !== "undefined") {
     localStorage.setItem("recipe_users", JSON.stringify(users))
-    return updatedUser
   }
-
-  // Create new social user
-  const newUser: User = {
-    id: Date.now().toString(),
-    username: socialData.username,
-    email: socialData.email,
-    avatar: socialData.avatar,
-    provider: socialData.provider,
-    socialId: socialData.socialId,
-    role: "user",
-    status: "active",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    lastLoginAt: new Date().toISOString(),
-    favorites: [],
-    ratings: [],
-    myRecipes: [],
-    isVerified: false,
-    isSuspended: false,
-    warningCount: 0,
-  }
-
-  users.push(newUser)
-  localStorage.setItem("recipe_users", JSON.stringify(users))
   return newUser
 }
 
@@ -179,7 +225,10 @@ export const updateUser = (userId: string, updates: Partial<User>): User | null 
     ...updates,
     updatedAt: new Date().toISOString(),
   }
-  localStorage.setItem("recipe_users", JSON.stringify(users))
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("recipe_users", JSON.stringify(users))
+  }
 
   // Update current user if it's the same user
   const currentUser = getCurrentUser()
@@ -223,11 +272,6 @@ export const findUserById = (id: string): User | null => {
   return users.find((user) => user.id === id) || null
 }
 
-export const findUserBySocialId = (socialId: string, provider: string): User | null => {
-  const users = getUsers()
-  return users.find((user) => user.socialId === socialId && user.provider === provider) || null
-}
-
 export const getCurrentUser = (): User | null => {
   if (typeof window === "undefined") return null
   const currentUser = localStorage.getItem("current_user")
@@ -235,6 +279,8 @@ export const getCurrentUser = (): User | null => {
 }
 
 export const setCurrentUser = (user: User | null): void => {
+  if (typeof window === "undefined") return
+
   if (user) {
     localStorage.setItem("current_user", JSON.stringify(user))
   } else {
@@ -243,214 +289,70 @@ export const setCurrentUser = (user: User | null): void => {
 }
 
 export const logout = (): void => {
+  if (typeof window === "undefined") return
   localStorage.removeItem("current_user")
 }
 
-// Add recipe to user's myRecipes list
-export const addRecipeToUser = (userId: string, recipeId: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  const myRecipes = user.myRecipes || []
-  if (!myRecipes.includes(recipeId)) {
-    const updatedRecipes = [...myRecipes, recipeId]
-    updateUser(userId, { myRecipes: updatedRecipes })
-    return true
-  }
-  return false
+// Check if user is authenticated
+export function isAuthenticated(user: User | null): boolean {
+  return user !== null && user.status === "active"
 }
 
-// Moderation functions
-export const addModerationNote = (
-  userId: string,
-  moderatorId: string,
-  moderatorName: string,
-  note: string,
-  action: ModerationAction,
-): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
+// Check if user is admin
+export function isAdmin(user: User | null): boolean {
+  return user !== null && hasPermission(user.role, "admin")
+}
 
-  const moderationNote: ModerationNote = {
-    id: Date.now().toString(),
-    moderatorId,
-    moderatorName,
-    note,
-    action,
-    createdAt: new Date().toISOString(),
+// Check if user is moderator or higher
+export function isModerator(user: User | null): boolean {
+  return user !== null && hasPermission(user.role, "moderator")
+}
+
+// Get user display name
+export function getUserDisplayName(user: User | null): string {
+  if (!user) return "Guest"
+  return user.username || user.email || "User"
+}
+
+// Get user initials for avatar
+export function getUserInitials(user: User | null): string {
+  if (!user || !user.username) return "U"
+
+  const names = user.username.split(" ")
+  if (names.length >= 2) {
+    return `${names[0][0]}${names[1][0]}`.toUpperCase()
   }
 
-  const updatedNotes = [...(user.moderationNotes || []), moderationNote]
-  updateUser(userId, { moderationNotes: updatedNotes })
-  return true
+  return user.username.charAt(0).toUpperCase()
 }
 
-export const suspendUser = (
-  userId: string,
-  moderatorId: string,
-  moderatorName: string,
-  reason: string,
-  durationDays: number,
-): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + durationDays)
-
-  updateUser(userId, {
-    isSuspended: true,
-    status: "suspended",
-    suspensionReason: reason,
-    suspensionExpiresAt: expiresAt.toISOString(),
-  })
-
-  addModerationNote(userId, moderatorId, moderatorName, `Suspended for ${durationDays} days: ${reason}`, "suspension")
-  return true
-}
-
-export const unsuspendUser = (userId: string, moderatorId: string, moderatorName: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  updateUser(userId, {
-    isSuspended: false,
-    status: "active",
-    suspensionReason: undefined,
-    suspensionExpiresAt: undefined,
-  })
-
-  addModerationNote(userId, moderatorId, moderatorName, "Suspension lifted", "note")
-  return true
-}
-
-export const banUser = (userId: string, moderatorId: string, moderatorName: string, reason: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  updateUser(userId, {
-    status: "banned",
-    suspensionReason: reason,
-  })
-
-  addModerationNote(userId, moderatorId, moderatorName, `Permanently banned: ${reason}`, "ban")
-  return true
-}
-
-export const changeUserRole = (
-  userId: string,
-  newRole: UserRole,
-  moderatorId: string,
-  moderatorName: string,
-): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  const oldRole = user.role
-  updateUser(userId, { role: newRole })
-
-  addModerationNote(userId, moderatorId, moderatorName, `Role changed from ${oldRole} to ${newRole}`, "role_change")
-  return true
-}
-
-export const verifyUser = (userId: string, moderatorId: string, moderatorName: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  updateUser(userId, { isVerified: true })
-  addModerationNote(userId, moderatorId, moderatorName, "User verified", "verification")
-  return true
-}
-
-export const warnUser = (userId: string, moderatorId: string, moderatorName: string, reason: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  updateUser(userId, { warningCount: (user.warningCount || 0) + 1 })
-  addModerationNote(userId, moderatorId, moderatorName, `Warning issued: ${reason}`, "warning")
-  return true
-}
-
-// Initialize owner account if it doesn't exist
-export const initializeOwnerAccount = (): void => {
-  const users = getUsers()
-  const ownerExists = users.some((user) => user.role === "owner")
-
-  if (!ownerExists) {
-    const ownerUser: User = {
-      id: "owner-" + Date.now(),
-      username: "Owner",
-      email: "owner@justthedamnrecipe.net",
-      password: "owner123", // In production, this should be properly hashed
-      role: "owner",
-      status: "active",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      favorites: [],
-      ratings: [],
-      myRecipes: [],
-      isVerified: true,
-      isSuspended: false,
-      warningCount: 0,
-    }
-
-    users.push(ownerUser)
-    localStorage.setItem("recipe_users", JSON.stringify(users))
-  }
-}
-
-// Recipe interaction functions (unchanged)
-export const toggleFavorite = (userId: string, recipeId: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  const favorites = user.favorites || []
-  const isFavorited = favorites.includes(recipeId)
-
-  const updatedFavorites = isFavorited ? favorites.filter((id) => id !== recipeId) : [...favorites, recipeId]
-
-  updateUser(userId, { favorites: updatedFavorites })
-  return !isFavorited
-}
-
-export const rateRecipe = (userId: string, recipeId: string, rating: number): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  const ratings = user.ratings || []
-  const existingRatingIndex = ratings.findIndex((r) => r.recipeId === recipeId)
-
-  const newRating: UserRating = {
-    recipeId,
-    rating,
-    createdAt: new Date().toISOString(),
+// Role display functions
+export function getRoleDisplayName(role: UserRole | string | undefined): string {
+  if (!role || !isValidRole(role)) {
+    return "User"
   }
 
-  let updatedRatings: UserRating[]
-  if (existingRatingIndex >= 0) {
-    // Update existing rating
-    updatedRatings = [...ratings]
-    updatedRatings[existingRatingIndex] = newRating
-  } else {
-    // Add new rating
-    updatedRatings = [...ratings, newRating]
+  const roleNames: Record<UserRole, string> = {
+    user: "User",
+    moderator: "Moderator",
+    admin: "Administrator",
+    owner: "Owner",
   }
 
-  updateUser(userId, { ratings: updatedRatings })
-  return true
+  return roleNames[role as UserRole] || "User"
 }
 
-export const getUserRating = (userId: string, recipeId: string): number | null => {
-  const user = findUserById(userId)
-  if (!user) return null
+export function getRoleBadgeColor(role: UserRole | string | undefined): string {
+  if (!role || !isValidRole(role)) {
+    return "bg-gray-100 text-gray-800"
+  }
 
-  const rating = user.ratings?.find((r) => r.recipeId === recipeId)
-  return rating ? rating.rating : null
-}
+  const roleColors: Record<UserRole, string> = {
+    user: "bg-gray-100 text-gray-800",
+    moderator: "bg-blue-100 text-blue-800",
+    admin: "bg-red-100 text-red-800",
+    owner: "bg-purple-100 text-purple-800",
+  }
 
-export const isFavorited = (userId: string, recipeId: string): boolean => {
-  const user = findUserById(userId)
-  if (!user) return false
-
-  return user.favorites?.includes(recipeId) || false
+  return roleColors[role as UserRole] || "bg-gray-100 text-gray-800"
 }

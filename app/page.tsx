@@ -1,23 +1,17 @@
 "use client"
 
-import { Search, Star, Clock, Eye, TrendingUp, User, Shield } from "lucide-react"
+import type React from "react"
+
+import { Star, Clock, Eye, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
 import { hasPermission } from "@/lib/auth"
 import { useEffect, useState } from "react"
-import { Footer } from "@/components/footer"
 import { useRouter } from "next/navigation"
 
 interface Recipe {
@@ -49,7 +43,7 @@ const categories = [
 ]
 
 export default function HomePage() {
-  const { user, loading, refreshUser } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const [allFeaturedRecipes, setAllFeaturedRecipes] = useState<{
     recent: Recipe[]
@@ -66,6 +60,7 @@ export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState<string>("recent")
   const [categoryData, setCategoryData] = useState(categories)
   const [loadingRecipes, setLoadingRecipes] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     const loadData = async () => {
@@ -75,7 +70,15 @@ export default function HomePage() {
 
         if (!response.ok) {
           console.error(`HTTP error! status: ${response.status}`)
-          throw new Error(`HTTP error! status: ${response.status}`)
+          // Don't throw error, just use empty data
+          setAllFeaturedRecipes({
+            recent: [],
+            rated: [],
+            viewed: [],
+            trending: [],
+          })
+          setDisplayedRecipes([])
+          return
         }
 
         const data = await response.json()
@@ -123,7 +126,7 @@ export default function HomePage() {
         ])
       } catch (error) {
         console.error("Error loading homepage data:", error)
-        // Set empty data on error
+        // Set empty data on error instead of crashing
         setAllFeaturedRecipes({
           recent: [],
           rated: [],
@@ -148,16 +151,10 @@ export default function HomePage() {
     setDisplayedRecipes(recipesToShow.slice(0, 6))
   }
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      })
-      await refreshUser()
-      router.refresh()
-    } catch (error) {
-      console.error("Logout error:", error)
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
     }
   }
 
@@ -167,90 +164,26 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-bold text-orange-600">
-              JTDRecipe
-            </Link>
-            <div className="flex items-center gap-4">
-              {user && (
-                <Link href="/add-recipe">
-                  <Button size="sm">Add Recipe</Button>
-                </Link>
-              )}
-              {user ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="flex items-center gap-2">
-                      {user?.avatar ? (
-                        <img
-                          src={user.avatar || "/placeholder.svg"}
-                          alt={user.username}
-                          className="w-4 h-4 rounded-full"
-                        />
-                      ) : (
-                        <User className="w-4 h-4" />
-                      )}
-                      {user?.username}
-                      {user?.role !== "user" && (
-                        <Badge variant="outline" className="text-xs ml-1">
-                          {user?.role}
-                        </Badge>
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link href="/profile">Profile</Link>
-                    </DropdownMenuItem>
-                    {hasPermission(user?.role || "user", "moderator") && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin" className="flex items-center gap-2">
-                            <Shield className="w-4 h-4" />
-                            Admin Panel
-                          </Link>
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <Link href="/login">
-                  <Button variant="outline" size="sm">
-                    Login
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Hero Section */}
-      <section className="bg-white py-12">
+      <section className="bg-white py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Just the damn recipe.</h1>
+          <h1 className="text-5xl font-bold text-gray-900 mb-6">Just the damn recipe.</h1>
           <p className="text-xl text-gray-600 mb-8">No life-stories, no fluff, just recipes that work.</p>
-          {user && <p className="text-lg text-orange-600 mb-4">Welcome back, {user?.username}!</p>}
+          {user && <p className="text-lg text-orange-600 mb-8">Welcome back, {user?.username}!</p>}
 
           {/* Search Bar */}
-          <div className="relative max-w-2xl mx-auto">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto">
             <Input
               type="search"
               placeholder="Search for recipes..."
-              className="pl-10 pr-4 py-3 text-lg rounded-full border-2 border-gray-200 focus:border-orange-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-4 pr-24 py-4 text-lg rounded-full border-2 border-gray-200 focus:border-orange-500"
             />
-            <Link href="/search">
-              <Button className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-full">Search</Button>
-            </Link>
-          </div>
+            <Button type="submit" className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-full px-6">
+              Search
+            </Button>
+          </form>
         </div>
       </section>
 
@@ -383,9 +316,6 @@ export default function HomePage() {
           )}
         </div>
       </section>
-
-      {/* Footer */}
-      <Footer />
     </div>
   )
 }

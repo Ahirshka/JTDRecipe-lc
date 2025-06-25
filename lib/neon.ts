@@ -223,6 +223,9 @@ export async function initializeDatabase() {
     console.log("Database initialized successfully")
   } catch (error) {
     console.error("Database initialization error:", error)
-    throw error
+    // Fix: Check if error exists and has message property
+    const errorMessage =
+      error && typeof error === "object" && "message" in error ? (error as Error).message : "Unknown database error"
+    throw new Error(`Database initialization failed: ${errorMessage}`)
   }
 }
