@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChefHat, Plus, User, LogOut, Shield, Menu, Settings, Home } from "lucide-react"
+import { Plus, User, LogOut, Shield, Menu, Settings, Home } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { hasPermission } from "@/lib/auth"
 import { useState } from "react"
@@ -66,8 +66,7 @@ export function Navigation() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
-            <ChefHat className="h-7 w-7 text-orange-600" />
-            <span className="text-xl font-bold text-orange-600">JTDRecipe</span>
+            <img src="/jtd-logo.png" alt="Just The Damn Recipe" className="h-10 w-auto" />
           </Link>
 
           {/* Desktop Navigation */}
@@ -97,8 +96,7 @@ export function Navigation() {
               <SheetContent side="right" className="w-[300px]">
                 <SheetHeader>
                   <SheetTitle className="flex items-center space-x-2">
-                    <ChefHat className="h-6 w-6 text-orange-600" />
-                    <span className="text-orange-600">JTDRecipe</span>
+                    <img src="/jtd-logo.png" alt="Just The Damn Recipe" className="h-8 w-auto" />
                   </SheetTitle>
                   <SheetDescription>Navigate through our recipe platform</SheetDescription>
                 </SheetHeader>
