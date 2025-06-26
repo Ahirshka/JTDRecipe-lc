@@ -12,7 +12,6 @@
       "dest": "/$1"
     }
   ],
-  "domains": ["www.justhtedamnrecipe.net", "justhtedamnrecipe.net"],
   "redirects": [
     {
       "source": "https://justhtedamnrecipe.net/(.*)",
