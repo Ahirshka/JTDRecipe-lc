@@ -5,7 +5,7 @@ export async function GET() {
   try {
     await initializeDatabase()
 
-    const pendingRecipes = await sql`
+    const recipes = await sql`
       SELECT 
         r.*,
         u.username as author_username,
@@ -43,7 +43,7 @@ export async function GET() {
       ORDER BY r.created_at ASC
     `
 
-    const formattedRecipes = pendingRecipes.map((row: any) => ({
+    const formattedRecipes = recipes.map((row: any) => ({
       id: row.id,
       title: row.title,
       description: row.description,
@@ -55,11 +55,17 @@ export async function GET() {
       cook_time_minutes: row.cook_time_minutes || 0,
       servings: row.servings || 1,
       image_url: row.image_url,
+      rating: 0,
+      review_count: 0,
+      view_count: 0,
+      moderation_status: row.moderation_status,
+      moderation_notes: row.moderation_notes,
+      is_published: false,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
       ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
       instructions: Array.isArray(row.instructions) ? row.instructions : [],
       tags: Array.isArray(row.tags) ? row.tags : [],
-      moderation_status: row.moderation_status,
-      created_at: row.created_at,
     }))
 
     return NextResponse.json({
@@ -74,6 +80,8 @@ export async function GET() {
         success: false,
         error: "Failed to get pending recipes",
         details: error instanceof Error ? error.message : "Unknown error",
+        recipes: [],
+        count: 0,
       },
       { status: 500 },
     )

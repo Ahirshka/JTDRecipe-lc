@@ -1,116 +1,91 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useAuth } from "@/contexts/auth-context"
-import { AdminModerationPanel } from "@/components/admin-moderation-panel"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Shield, Users, ChefHat, Clock, TrendingUp } from "lucide-react"
-import { hasPermission } from "@/lib/auth"
-import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { AdminModerationPanel } from "@/components/admin-moderation-panel"
+import { AdminDashboard } from "@/components/admin-dashboard"
+import { Users, ChefHat, Clock, CheckCircle, AlertTriangle } from "lucide-react"
+
+interface AdminStats {
+  totalUsers: number
+  activeUsers: number
+  pendingRecipes: number
+  publishedRecipes: number
+  totalRecipes: number
+}
 
 export default function AdminPage() {
-  const { user, loading } = useAuth()
-  const router = useRouter()
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
-    totalRecipes: 0,
+    activeUsers: 0,
     pendingRecipes: 0,
-    approvedRecipes: 0,
+    publishedRecipes: 0,
+    totalRecipes: 0,
   })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!loading && (!user || !hasPermission(user.role, "moderator"))) {
-      router.push("/")
-      return
-    }
-
-    if (user && hasPermission(user.role, "moderator")) {
-      loadStats()
-    }
-  }, [user, loading, router])
+    loadStats()
+  }, [])
 
   const loadStats = async () => {
     try {
-      // Load basic stats
+      setLoading(true)
       const response = await fetch("/api/admin/stats")
       if (response.ok) {
         const data = await response.json()
-        setStats(data)
+        setStats(data.stats || stats)
       }
     } catch (error) {
-      console.error("Failed to load stats:", error)
+      console.error("Failed to load admin stats:", error)
+    } finally {
+      setLoading(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-orange-600" />
-          <p>Loading admin panel...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user || !hasPermission(user.role, "moderator")) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-red-500" />
-              Access Denied
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600 mb-4">You don't have permission to access the admin panel.</p>
-            <Button onClick={() => router.push("/")} className="w-full">
-              Return to Homepage
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.push("/")}>
-                ← Back to Site
-              </Button>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-                <p className="text-sm text-gray-500">Welcome, {user.username}</p>
-              </div>
-            </div>
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Shield className="w-3 h-3" />
-              {user.role}
-            </Badge>
-          </div>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+          <p className="text-gray-600">Manage users, moderate recipes, and monitor site activity</p>
         </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">Registered users</p>
+              <div className="text-2xl font-bold">{loading ? "..." : stats.totalUsers}</div>
+              <p className="text-xs text-muted-foreground">{loading ? "..." : stats.activeUsers} active users</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
+              <Clock className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{loading ? "..." : stats.pendingRecipes}</div>
+              <p className="text-xs text-muted-foreground">Recipes awaiting moderation</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Published Recipes</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{loading ? "..." : stats.publishedRecipes}</div>
+              <p className="text-xs text-muted-foreground">Live on the website</p>
             </CardContent>
           </Card>
 
@@ -120,70 +95,99 @@ export default function AdminPage() {
               <ChefHat className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalRecipes}</div>
-              <p className="text-xs text-muted-foreground">All recipes</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-700">{stats.pendingRecipes}</div>
-              <p className="text-xs text-yellow-600">Awaiting moderation</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Approved</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-700">{stats.approvedRecipes}</div>
-              <p className="text-xs text-green-600">Published recipes</p>
+              <div className="text-2xl font-bold">{loading ? "..." : stats.totalRecipes}</div>
+              <p className="text-xs text-muted-foreground">All recipe submissions</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Content */}
-        <Tabs defaultValue="moderation" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="moderation">Recipe Moderation</TabsTrigger>
-            <TabsTrigger value="users">User Management</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+        {/* Priority Alert */}
+        {stats.pendingRecipes > 0 && (
+          <Card className="mb-6 border-yellow-200 bg-yellow-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <h3 className="font-semibold text-yellow-800">Action Required</h3>
+                  <p className="text-yellow-700">
+                    {stats.pendingRecipes} recipe{stats.pendingRecipes !== 1 ? "s" : ""} waiting for your review
+                  </p>
+                </div>
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 ml-auto">
+                  {stats.pendingRecipes} pending
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="moderation" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="moderation" className="flex items-center gap-2">
+              <ChefHat className="w-4 h-4" />
+              Recipe Moderation
+              {stats.pendingRecipes > 0 && (
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 ml-1">
+                  {stats.pendingRecipes}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="dashboard" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              User Management
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="moderation" className="mt-6">
+          <TabsContent value="moderation" className="space-y-6">
             <AdminModerationPanel />
           </TabsContent>
 
-          <TabsContent value="users" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage user accounts and permissions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">User management features coming soon...</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="settings" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-                <CardDescription>Configure system-wide settings</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">System settings coming soon...</p>
-              </CardContent>
-            </Card>
+          <TabsContent value="dashboard" className="space-y-6">
+            <AdminDashboard />
           </TabsContent>
         </Tabs>
+
+        {/* Quick Actions */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common administrative tasks</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <ChefHat className="w-8 h-8 text-orange-500" />
+                  <div>
+                    <h3 className="font-semibold">Test Recipe Submission</h3>
+                    <p className="text-sm text-muted-foreground">Submit a test recipe for moderation</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Users className="w-8 h-8 text-blue-500" />
+                  <div>
+                    <h3 className="font-semibold">User Analytics</h3>
+                    <p className="text-sm text-muted-foreground">View user activity and engagement</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-8 h-8 text-green-500" />
+                  <div>
+                    <h3 className="font-semibold">Site Health</h3>
+                    <p className="text-sm text-muted-foreground">Monitor system status and performance</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

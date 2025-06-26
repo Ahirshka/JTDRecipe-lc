@@ -1,135 +1,160 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { sql, initializeDatabase } from "@/lib/neon"
 
 export async function GET(request: NextRequest) {
   try {
-    // Return mock data for now to prevent 500 errors
-    const mockRecipes = [
-      {
-        id: "1",
-        title: "Classic Chocolate Chip Cookies",
-        description: "Perfectly chewy chocolate chip cookies that everyone loves",
-        author_id: "1",
-        author_username: "ChefMike",
-        category: "Desserts",
-        difficulty: "Easy",
-        prep_time_minutes: 15,
-        cook_time_minutes: 12,
-        servings: 24,
-        image_url: "/placeholder.svg?height=200&width=300&text=Chocolate+Chip+Cookies",
-        rating: 4.8,
-        review_count: 156,
-        view_count: 2340,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: "2",
-        title: "Homemade Pizza Dough",
-        description: "Easy pizza dough recipe that works every time",
-        author_id: "2",
-        author_username: "PizzaLover",
-        category: "Main Dishes",
-        difficulty: "Medium",
-        prep_time_minutes: 20,
-        cook_time_minutes: 15,
-        servings: 4,
-        image_url: "/placeholder.svg?height=200&width=300&text=Pizza+Dough",
-        rating: 4.6,
-        review_count: 89,
-        view_count: 1890,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: "3",
-        title: "Fresh Garden Salad",
-        description: "Light and refreshing salad with seasonal vegetables",
-        author_id: "3",
-        author_username: "HealthyEats",
-        category: "Salads",
-        difficulty: "Easy",
-        prep_time_minutes: 10,
-        cook_time_minutes: 0,
-        servings: 2,
-        image_url: "/placeholder.svg?height=200&width=300&text=Garden+Salad",
-        rating: 4.3,
-        review_count: 45,
-        view_count: 890,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: "4",
-        title: "Beef Stir Fry",
-        description: "Quick and delicious beef stir fry with vegetables",
-        author_id: "4",
-        author_username: "WokMaster",
-        category: "Main Dishes",
-        difficulty: "Medium",
-        prep_time_minutes: 15,
-        cook_time_minutes: 10,
-        servings: 4,
-        image_url: "/placeholder.svg?height=200&width=300&text=Beef+Stir+Fry",
-        rating: 4.7,
-        review_count: 123,
-        view_count: 1560,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: "5",
-        title: "Banana Bread",
-        description: "Moist and flavorful banana bread perfect for breakfast",
-        author_id: "5",
-        author_username: "BakingQueen",
-        category: "Desserts",
-        difficulty: "Easy",
-        prep_time_minutes: 15,
-        cook_time_minutes: 60,
-        servings: 8,
-        image_url: "/placeholder.svg?height=200&width=300&text=Banana+Bread",
-        rating: 4.9,
-        review_count: 234,
-        view_count: 3450,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week ago
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: "6",
-        title: "Chicken Caesar Salad",
-        description: "Classic Caesar salad with grilled chicken",
-        author_id: "6",
-        author_username: "SaladChef",
-        category: "Salads",
-        difficulty: "Medium",
-        prep_time_minutes: 20,
-        cook_time_minutes: 15,
-        servings: 2,
-        image_url: "/placeholder.svg?height=200&width=300&text=Caesar+Salad",
-        rating: 4.5,
-        review_count: 67,
-        view_count: 1230,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days ago
-        updated_at: new Date().toISOString(),
-      },
-    ]
+    await initializeDatabase()
 
-    return NextResponse.json(mockRecipes)
+    const recipes = await sql`
+      SELECT 
+        r.*,
+        u.username as author_username,
+        COALESCE(r.rating, 0) as rating,
+        COALESCE(r.review_count, 0) as review_count,
+        COALESCE(r.view_count, 0) as view_count
+      FROM recipes r
+      JOIN users u ON r.author_id = u.id
+      WHERE r.moderation_status = 'approved' 
+        AND r.is_published = true
+      ORDER BY r.created_at DESC
+      LIMIT 50
+    `
+
+    const formattedRecipes = recipes.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      author_id: row.author_id,
+      author_username: row.author_username,
+      category: row.category,
+      difficulty: row.difficulty,
+      prep_time_minutes: row.prep_time_minutes || 0,
+      cook_time_minutes: row.cook_time_minutes || 0,
+      servings: row.servings || 1,
+      image_url: row.image_url,
+      rating: Number.parseFloat(row.rating) || 0,
+      review_count: Number.parseInt(row.review_count) || 0,
+      view_count: Number.parseInt(row.view_count) || 0,
+      moderation_status: row.moderation_status,
+      is_published: row.is_published,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }))
+
+    return NextResponse.json({
+      success: true,
+      recipes: formattedRecipes,
+      count: formattedRecipes.length,
+    })
   } catch (error) {
-    console.error("API error:", error)
-    // Return empty array instead of error to prevent homepage crash
-    return NextResponse.json([])
+    console.error("Failed to get recipes:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to get recipes",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    await initializeDatabase()
+
+    const recipeData = await request.json()
+
+    // Validate required fields
+    if (!recipeData.title || !recipeData.category || !recipeData.difficulty) {
+      return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 })
+    }
+
+    // For testing purposes, we'll use a default test user
+    // In production, you'd get this from the authenticated session
+    const testUserId = "test_user_1"
+
+    // Check if test user exists, create if not
+    const existingUser = await sql`
+      SELECT id FROM users WHERE id = ${testUserId}
+    `
+
+    if (existingUser.length === 0) {
+      await sql`
+        INSERT INTO users (id, username, email, password_hash, email_verified, created_at, updated_at)
+        VALUES (${testUserId}, 'TestUser', 'test@example.com', 'test_hash', true, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+      `
+    }
+
+    const recipeId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    await sql.begin(async (sql) => {
+      // Insert main recipe
+      await sql`
+        INSERT INTO recipes (
+          id, title, description, author_id, category, difficulty,
+          prep_time_minutes, cook_time_minutes, servings, image_url,
+          moderation_status, is_published, created_at, updated_at
+        ) VALUES (
+          ${recipeId}, ${recipeData.title}, ${recipeData.description || null}, ${testUserId},
+          ${recipeData.category}, ${recipeData.difficulty}, ${recipeData.prep_time_minutes || 0},
+          ${recipeData.cook_time_minutes || 0}, ${recipeData.servings || 1}, ${recipeData.image_url || null},
+          'pending', false, NOW(), NOW()
+        )
+      `
+
+      // Insert ingredients
+      if (recipeData.ingredients && Array.isArray(recipeData.ingredients)) {
+        for (const ingredient of recipeData.ingredients) {
+          if (ingredient.ingredient && ingredient.amount && ingredient.unit) {
+            await sql`
+              INSERT INTO recipe_ingredients (recipe_id, ingredient, amount, unit)
+              VALUES (${recipeId}, ${ingredient.ingredient}, ${ingredient.amount}, ${ingredient.unit})
+            `
+          }
+        }
+      }
+
+      // Insert instructions
+      if (recipeData.instructions && Array.isArray(recipeData.instructions)) {
+        for (const instruction of recipeData.instructions) {
+          if (instruction.instruction && instruction.step_number) {
+            await sql`
+              INSERT INTO recipe_instructions (recipe_id, instruction, step_number)
+              VALUES (${recipeId}, ${instruction.instruction}, ${instruction.step_number})
+            `
+          }
+        }
+      }
+
+      // Insert tags
+      if (recipeData.tags && Array.isArray(recipeData.tags)) {
+        for (const tag of recipeData.tags) {
+          if (tag && typeof tag === "string") {
+            await sql`
+              INSERT INTO recipe_tags (recipe_id, tag)
+              VALUES (${recipeId}, ${tag})
+            `
+          }
+        }
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Recipe submitted successfully",
+      recipeId: recipeId,
+    })
+  } catch (error) {
+    console.error("Failed to create recipe:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to create recipe",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }
