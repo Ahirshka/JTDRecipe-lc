@@ -14,8 +14,8 @@
   ],
   "redirects": [
     {
-      "source": "https://justhtedamnrecipe.net/(.*)",
-      "destination": "https://www.justhtedamnrecipe.net/$1",
+      "source": "https://justthedamnrecipe.net/(.*)",
+      "destination": "https://www.justthedamnrecipe.net/$1",
       "permanent": true
     }
   ],
