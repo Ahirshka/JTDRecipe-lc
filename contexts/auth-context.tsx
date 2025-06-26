@@ -9,7 +9,12 @@ export interface User {
   email: string
   role: string
   avatar?: string
+  status: string
+  is_verified: boolean
   created_at: string
+  bio?: string
+  location?: string
+  website?: string
 }
 
 interface AuthContextType {
@@ -53,11 +58,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
     } catch (error) {
       console.error("Logout error:", error)
+      setUser(null)
     }
   }
 
   useEffect(() => {
     const loadUser = async () => {
+      setLoading(true)
       await refreshUser()
       setLoading(false)
     }

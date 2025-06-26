@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
         message: "Login successful",
       })
     } else {
-      return NextResponse.json({ success: false, error: result.error }, { status: 401 })
+      return NextResponse.json({ success: false, error: result.error }, { status: 400 })
     }
   } catch (error) {
     console.error("Login API error:", error)

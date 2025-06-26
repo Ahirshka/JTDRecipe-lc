@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { sql, initializeDatabase } from "@/lib/neon"
 
 export interface Recipe {
   id: string
@@ -44,51 +45,74 @@ export interface CreateRecipeData {
 // Get all approved and published recipes for the website
 export async function getApprovedRecipes(): Promise<Recipe[]> {
   try {
-    // Return mock data for now to prevent errors
-    const mockRecipes: Recipe[] = [
-      {
-        id: "1",
-        title: "Classic Chocolate Chip Cookies",
-        description: "Perfectly chewy chocolate chip cookies that everyone loves",
-        author_id: "1",
-        author_username: "ChefMike",
-        category: "Desserts",
-        difficulty: "Easy",
-        prep_time_minutes: 15,
-        cook_time_minutes: 12,
-        servings: 24,
-        image_url: "/placeholder.svg?height=200&width=300&text=Chocolate+Chip+Cookies",
-        rating: 4.8,
-        review_count: 156,
-        view_count: 2340,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      {
-        id: "2",
-        title: "Homemade Pizza Dough",
-        description: "Easy pizza dough recipe that works every time",
-        author_id: "2",
-        author_username: "PizzaLover",
-        category: "Main Dishes",
-        difficulty: "Medium",
-        prep_time_minutes: 20,
-        cook_time_minutes: 15,
-        servings: 4,
-        image_url: "/placeholder.svg?height=200&width=300&text=Pizza+Dough",
-        rating: 4.6,
-        review_count: 89,
-        view_count: 1890,
-        moderation_status: "approved",
-        is_published: true,
-        created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ]
+    await initializeDatabase()
 
-    return mockRecipes
+    const recipes = await sql`
+      SELECT 
+        r.*,
+        u.username as author_username,
+        COALESCE(r.rating, 0) as rating,
+        COALESCE(r.review_count, 0) as review_count,
+        COALESCE(r.view_count, 0) as view_count,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'ingredient', ri.ingredient,
+              'amount', ri.amount,
+              'unit', ri.unit
+            )
+          ) FILTER (WHERE ri.ingredient IS NOT NULL), 
+          '[]'::json
+        ) as ingredients,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'instruction', inst.instruction,
+              'step_number', inst.step_number
+            )
+            ORDER BY inst.step_number
+          ) FILTER (WHERE inst.instruction IS NOT NULL), 
+          '[]'::json
+        ) as instructions,
+        COALESCE(
+          array_agg(DISTINCT rt.tag) FILTER (WHERE rt.tag IS NOT NULL), 
+          ARRAY[]::text[]
+        ) as tags
+      FROM recipes r
+      JOIN users u ON r.author_id = u.id
+      LEFT JOIN recipe_ingredients ri ON r.id = ri.recipe_id
+      LEFT JOIN recipe_instructions inst ON r.id = inst.recipe_id
+      LEFT JOIN recipe_tags rt ON r.id = rt.recipe_id
+      WHERE r.moderation_status = 'approved' 
+        AND r.is_published = true
+      GROUP BY r.id, u.username
+      ORDER BY r.created_at DESC
+    `
+
+    return recipes.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      author_id: row.author_id,
+      author_username: row.author_username,
+      category: row.category,
+      difficulty: row.difficulty,
+      prep_time_minutes: row.prep_time_minutes || 0,
+      cook_time_minutes: row.cook_time_minutes || 0,
+      servings: row.servings || 1,
+      image_url: row.image_url,
+      rating: Number.parseFloat(row.rating) || 0,
+      review_count: Number.parseInt(row.review_count) || 0,
+      view_count: Number.parseInt(row.view_count) || 0,
+      moderation_status: row.moderation_status,
+      moderation_notes: row.moderation_notes,
+      is_published: row.is_published,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+      instructions: Array.isArray(row.instructions) ? row.instructions : [],
+      tags: Array.isArray(row.tags) ? row.tags : [],
+    }))
   } catch (error) {
     console.error("Get approved recipes error:", error)
     return []
@@ -98,8 +122,70 @@ export async function getApprovedRecipes(): Promise<Recipe[]> {
 // Get pending recipes for moderation
 export async function getPendingRecipes(): Promise<Recipe[]> {
   try {
-    // Return empty array for now
-    return []
+    await initializeDatabase()
+
+    const recipes = await sql`
+      SELECT 
+        r.*,
+        u.username as author_username,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'ingredient', ri.ingredient,
+              'amount', ri.amount,
+              'unit', ri.unit
+            )
+          ) FILTER (WHERE ri.ingredient IS NOT NULL), 
+          '[]'::json
+        ) as ingredients,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'instruction', inst.instruction,
+              'step_number', inst.step_number
+            )
+            ORDER BY inst.step_number
+          ) FILTER (WHERE inst.instruction IS NOT NULL), 
+          '[]'::json
+        ) as instructions,
+        COALESCE(
+          array_agg(DISTINCT rt.tag) FILTER (WHERE rt.tag IS NOT NULL), 
+          ARRAY[]::text[]
+        ) as tags
+      FROM recipes r
+      JOIN users u ON r.author_id = u.id
+      LEFT JOIN recipe_ingredients ri ON r.id = ri.recipe_id
+      LEFT JOIN recipe_instructions inst ON r.id = inst.recipe_id
+      LEFT JOIN recipe_tags rt ON r.id = rt.recipe_id
+      WHERE r.moderation_status = 'pending'
+      GROUP BY r.id, u.username
+      ORDER BY r.created_at ASC
+    `
+
+    return recipes.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      author_id: row.author_id,
+      author_username: row.author_username,
+      category: row.category,
+      difficulty: row.difficulty,
+      prep_time_minutes: row.prep_time_minutes || 0,
+      cook_time_minutes: row.cook_time_minutes || 0,
+      servings: row.servings || 1,
+      image_url: row.image_url,
+      rating: 0,
+      review_count: 0,
+      view_count: 0,
+      moderation_status: row.moderation_status,
+      moderation_notes: row.moderation_notes,
+      is_published: false,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+      instructions: Array.isArray(row.instructions) ? row.instructions : [],
+      tags: Array.isArray(row.tags) ? row.tags : [],
+    }))
   } catch (error) {
     console.error("Get pending recipes error:", error)
     return []
@@ -109,38 +195,87 @@ export async function getPendingRecipes(): Promise<Recipe[]> {
 // Get recipe by ID with full details
 export async function getRecipeById(id: string): Promise<Recipe | null> {
   try {
-    // Return mock recipe for testing
-    const mockRecipe: Recipe = {
-      id: id,
-      title: "Sample Recipe",
-      description: "This is a sample recipe for testing",
-      author_id: "1",
-      author_username: "TestUser",
-      category: "Main Dishes",
-      difficulty: "Easy",
-      prep_time_minutes: 15,
-      cook_time_minutes: 30,
-      servings: 4,
-      image_url: "/placeholder.svg?height=200&width=300&text=Sample+Recipe",
-      rating: 4.5,
-      review_count: 10,
-      view_count: 100,
-      moderation_status: "approved",
-      is_published: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ingredients: [
-        { ingredient: "Sample ingredient 1", amount: "1", unit: "cup" },
-        { ingredient: "Sample ingredient 2", amount: "2", unit: "tbsp" },
-      ],
-      instructions: [
-        { instruction: "Step 1: Do something", step_number: 1 },
-        { instruction: "Step 2: Do something else", step_number: 2 },
-      ],
-      tags: ["easy", "quick", "delicious"],
+    await initializeDatabase()
+
+    const recipes = await sql`
+      SELECT 
+        r.*,
+        u.username as author_username,
+        COALESCE(r.rating, 0) as rating,
+        COALESCE(r.review_count, 0) as review_count,
+        COALESCE(r.view_count, 0) as view_count,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'ingredient', ri.ingredient,
+              'amount', ri.amount,
+              'unit', ri.unit
+            )
+          ) FILTER (WHERE ri.ingredient IS NOT NULL), 
+          '[]'::json
+        ) as ingredients,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'instruction', inst.instruction,
+              'step_number', inst.step_number
+            )
+            ORDER BY inst.step_number
+          ) FILTER (WHERE inst.instruction IS NOT NULL), 
+          '[]'::json
+        ) as instructions,
+        COALESCE(
+          array_agg(DISTINCT rt.tag) FILTER (WHERE rt.tag IS NOT NULL), 
+          ARRAY[]::text[]
+        ) as tags
+      FROM recipes r
+      JOIN users u ON r.author_id = u.id
+      LEFT JOIN recipe_ingredients ri ON r.id = ri.recipe_id
+      LEFT JOIN recipe_instructions inst ON r.id = inst.recipe_id
+      LEFT JOIN recipe_tags rt ON r.id = rt.recipe_id
+      WHERE r.id = ${id} 
+        AND r.moderation_status = 'approved' 
+        AND r.is_published = true
+      GROUP BY r.id, u.username
+    `
+
+    if (recipes.length === 0) {
+      return null
     }
 
-    return mockRecipe
+    const row = recipes[0]
+
+    // Increment view count
+    await sql`
+      UPDATE recipes 
+      SET view_count = COALESCE(view_count, 0) + 1 
+      WHERE id = ${id}
+    `
+
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      author_id: row.author_id,
+      author_username: row.author_username,
+      category: row.category,
+      difficulty: row.difficulty,
+      prep_time_minutes: row.prep_time_minutes || 0,
+      cook_time_minutes: row.cook_time_minutes || 0,
+      servings: row.servings || 1,
+      image_url: row.image_url,
+      rating: Number.parseFloat(row.rating) || 0,
+      review_count: Number.parseInt(row.review_count) || 0,
+      view_count: Number.parseInt(row.view_count) || 0,
+      moderation_status: row.moderation_status,
+      moderation_notes: row.moderation_notes,
+      is_published: row.is_published,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+      instructions: Array.isArray(row.instructions) ? row.instructions : [],
+      tags: Array.isArray(row.tags) ? row.tags : [],
+    }
   } catch (error) {
     console.error("Get recipe by ID error:", error)
     return null
@@ -154,11 +289,21 @@ export async function moderateRecipe(
   notes?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Mock implementation for now
-    console.log(`Moderating recipe ${recipeId} with status ${status}`)
+    await initializeDatabase()
+
+    await sql`
+      UPDATE recipes 
+      SET 
+        moderation_status = ${status}, 
+        is_published = ${status === "approved"},
+        moderation_notes = ${notes || null},
+        updated_at = NOW()
+      WHERE id = ${recipeId}
+    `
 
     revalidatePath("/")
     revalidatePath("/admin")
+    revalidatePath("/search")
 
     return { success: true }
   } catch (error) {
@@ -167,16 +312,56 @@ export async function moderateRecipe(
   }
 }
 
-// Create a new recipe
+// Create a new recipe (for user submission)
 export async function createRecipe(
   recipeData: CreateRecipeData,
+  authorId: string,
 ): Promise<{ success: boolean; error?: string; recipeId?: string }> {
   try {
-    // Mock implementation for now
-    const recipeId = Date.now().toString()
-    console.log("Creating recipe:", recipeData.title)
+    await initializeDatabase()
 
-    revalidatePath("/")
+    const recipeId = `recipe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    await sql.begin(async (sql) => {
+      // Insert main recipe
+      await sql`
+        INSERT INTO recipes (
+          id, title, description, author_id, category, difficulty,
+          prep_time_minutes, cook_time_minutes, servings, image_url,
+          moderation_status, is_published, created_at, updated_at
+        ) VALUES (
+          ${recipeId}, ${recipeData.title}, ${recipeData.description}, ${authorId},
+          ${recipeData.category}, ${recipeData.difficulty}, ${recipeData.prep_time_minutes},
+          ${recipeData.cook_time_minutes}, ${recipeData.servings}, ${recipeData.image_url},
+          'pending', false, NOW(), NOW()
+        )
+      `
+
+      // Insert ingredients
+      for (const ingredient of recipeData.ingredients) {
+        await sql`
+          INSERT INTO recipe_ingredients (recipe_id, ingredient, amount, unit)
+          VALUES (${recipeId}, ${ingredient.ingredient}, ${ingredient.amount}, ${ingredient.unit})
+        `
+      }
+
+      // Insert instructions
+      for (const instruction of recipeData.instructions) {
+        await sql`
+          INSERT INTO recipe_instructions (recipe_id, instruction, step_number)
+          VALUES (${recipeId}, ${instruction.instruction}, ${instruction.step_number})
+        `
+      }
+
+      // Insert tags
+      for (const tag of recipeData.tags) {
+        await sql`
+          INSERT INTO recipe_tags (recipe_id, tag)
+          VALUES (${recipeId}, ${tag})
+        `
+      }
+    })
+
     revalidatePath("/admin")
 
     return { success: true, recipeId }
@@ -223,7 +408,7 @@ export async function deleteRecipe(id: string): Promise<{ success: boolean; erro
 export async function getRecipesByCategory(category: string): Promise<Recipe[]> {
   try {
     const allRecipes = await getApprovedRecipes()
-    return allRecipes.filter((recipe) => recipe.category === category)
+    return allRecipes.filter((recipe) => recipe.category.toLowerCase() === category.toLowerCase())
   } catch (error) {
     console.error("Get recipes by category error:", error)
     return []
@@ -233,15 +418,54 @@ export async function getRecipesByCategory(category: string): Promise<Recipe[]> 
 // Search recipes
 export async function searchRecipes(query: string): Promise<Recipe[]> {
   try {
-    const allRecipes = await getApprovedRecipes()
-    const lowercaseQuery = query.toLowerCase()
+    await initializeDatabase()
 
-    return allRecipes.filter(
-      (recipe) =>
-        recipe.title.toLowerCase().includes(lowercaseQuery) ||
-        recipe.description?.toLowerCase().includes(lowercaseQuery) ||
-        recipe.category.toLowerCase().includes(lowercaseQuery),
-    )
+    const recipes = await sql`
+      SELECT 
+        r.*,
+        u.username as author_username,
+        COALESCE(r.rating, 0) as rating,
+        COALESCE(r.review_count, 0) as review_count,
+        COALESCE(r.view_count, 0) as view_count,
+        ts_rank(search_vector, plainto_tsquery('english', ${query})) as rank
+      FROM recipes r
+      JOIN users u ON r.author_id = u.id
+      WHERE r.moderation_status = 'approved' 
+        AND r.is_published = true
+        AND (
+          search_vector @@ plainto_tsquery('english', ${query})
+          OR title ILIKE ${"%" + query + "%"}
+          OR description ILIKE ${"%" + query + "%"}
+          OR category ILIKE ${"%" + query + "%"}
+        )
+      ORDER BY rank DESC, r.created_at DESC
+      LIMIT 50
+    `
+
+    return recipes.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      author_id: row.author_id,
+      author_username: row.author_username,
+      category: row.category,
+      difficulty: row.difficulty,
+      prep_time_minutes: row.prep_time_minutes || 0,
+      cook_time_minutes: row.cook_time_minutes || 0,
+      servings: row.servings || 1,
+      image_url: row.image_url,
+      rating: Number.parseFloat(row.rating) || 0,
+      review_count: Number.parseInt(row.review_count) || 0,
+      view_count: Number.parseInt(row.view_count) || 0,
+      moderation_status: row.moderation_status,
+      moderation_notes: row.moderation_notes,
+      is_published: row.is_published,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      ingredients: [],
+      instructions: [],
+      tags: [],
+    }))
   } catch (error) {
     console.error("Search recipes error:", error)
     return []

@@ -6,10 +6,40 @@ export async function GET() {
     await initializeDatabase()
 
     const pendingRecipes = await sql`
-      SELECT r.*, u.username as author_username
+      SELECT 
+        r.*,
+        u.username as author_username,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'ingredient', ri.ingredient,
+              'amount', ri.amount,
+              'unit', ri.unit
+            )
+          ) FILTER (WHERE ri.ingredient IS NOT NULL), 
+          '[]'::json
+        ) as ingredients,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'instruction', inst.instruction,
+              'step_number', inst.step_number
+            )
+            ORDER BY inst.step_number
+          ) FILTER (WHERE inst.instruction IS NOT NULL), 
+          '[]'::json
+        ) as instructions,
+        COALESCE(
+          array_agg(DISTINCT rt.tag) FILTER (WHERE rt.tag IS NOT NULL), 
+          ARRAY[]::text[]
+        ) as tags
       FROM recipes r
       JOIN users u ON r.author_id = u.id
+      LEFT JOIN recipe_ingredients ri ON r.id = ri.recipe_id
+      LEFT JOIN recipe_instructions inst ON r.id = inst.recipe_id
+      LEFT JOIN recipe_tags rt ON r.id = rt.recipe_id
       WHERE r.moderation_status = 'pending'
+      GROUP BY r.id, u.username
       ORDER BY r.created_at ASC
     `
 
@@ -25,6 +55,9 @@ export async function GET() {
       cook_time_minutes: row.cook_time_minutes || 0,
       servings: row.servings || 1,
       image_url: row.image_url,
+      ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+      instructions: Array.isArray(row.instructions) ? row.instructions : [],
+      tags: Array.isArray(row.tags) ? row.tags : [],
       moderation_status: row.moderation_status,
       created_at: row.created_at,
     }))

@@ -150,7 +150,7 @@ export function Navigation() {
                           setMobileMenuOpen(false)
                         }}
                       >
-                        Sign In
+                        Login
                       </Button>
                       <Button
                         className="w-full justify-start bg-orange-600 hover:bg-orange-700"
@@ -159,7 +159,7 @@ export function Navigation() {
                           setMobileMenuOpen(false)
                         }}
                       >
-                        Get Started
+                        Sign Up
                       </Button>
                     </div>
                   )}
@@ -241,10 +241,10 @@ export function Navigation() {
                   asChild
                   className="text-gray-700 hover:text-orange-600 hidden sm:flex"
                 >
-                  <Link href="/login">Sign In</Link>
+                  <Link href="/login">Login</Link>
                 </Button>
                 <Button size="sm" asChild className="bg-orange-600 hover:bg-orange-700 text-white">
-                  <Link href="/login">Login</Link>
+                  <Link href="/login">Sign Up</Link>
                 </Button>
               </div>
             )}

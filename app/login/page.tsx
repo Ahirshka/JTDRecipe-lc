@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
   const [agreeToTerms, setAgreeToTerms] = useState(false)
 
   const router = useRouter()
@@ -48,6 +49,12 @@ export default function LoginPage() {
       [e.target.name]: e.target.value,
     })
     setError("")
+    setSuccess("")
+  }
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
   }
 
   const validateForm = () => {
@@ -60,12 +67,26 @@ export default function LoginPage() {
         setError("Username must be at least 3 characters long")
         return false
       }
+      if (formData.username.length > 30) {
+        setError("Username must be less than 30 characters")
+        return false
+      }
+      // Check for valid username characters
+      if (!/^[a-zA-Z0-9_-]+$/.test(formData.username)) {
+        setError("Username can only contain letters, numbers, underscores, and hyphens")
+        return false
+      }
       if (formData.password !== formData.confirmPassword) {
         setError("Passwords do not match")
         return false
       }
       if (formData.password.length < 8) {
         setError("Password must be at least 8 characters long")
+        return false
+      }
+      // Password strength validation
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+        setError("Password must contain at least one uppercase letter, one lowercase letter, and one number")
         return false
       }
       if (!agreeToTerms) {
@@ -75,7 +96,11 @@ export default function LoginPage() {
     }
 
     if (!formData.email.trim()) {
-      setError("Email is required")
+      setError("Email address is required")
+      return false
+    }
+    if (!validateEmail(formData.email)) {
+      setError("Please enter a valid email address")
       return false
     }
     if (!formData.password.trim()) {
@@ -95,6 +120,7 @@ export default function LoginPage() {
 
     setLoading(true)
     setError("")
+    setSuccess("")
 
     try {
       const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register"
@@ -117,8 +143,17 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (data.success) {
+        if (!isLogin) {
+          setSuccess("Account created successfully! You are now logged in.")
+        }
         await refreshUser()
-        router.push("/")
+        // Small delay to show success message for registration
+        setTimeout(
+          () => {
+            router.push("/")
+          },
+          isLogin ? 0 : 1500,
+        )
       } else {
         setError(data.error || `${isLogin ? "Login" : "Registration"} failed`)
       }
@@ -133,6 +168,7 @@ export default function LoginPage() {
   const toggleMode = () => {
     setIsLogin(!isLogin)
     setError("")
+    setSuccess("")
     setFormData({ username: "", email: "", password: "", confirmPassword: "" })
     setAgreeToTerms(false)
   }
@@ -163,7 +199,7 @@ export default function LoginPage() {
             </CardTitle>
             <CardDescription className="text-gray-600">
               {isLogin
-                ? "Sign in to access your recipes and favorites"
+                ? "Login to access your recipes and favorites"
                 : "Create an account to start sharing your favorite recipes"}
             </CardDescription>
           </CardHeader>
@@ -173,6 +209,13 @@ export default function LoginPage() {
               <Alert variant="destructive" className="border-red-200 bg-red-50">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="text-red-800">{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="border-green-200 bg-green-50">
+                <AlertCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">{success}</AlertDescription>
               </Alert>
             )}
 
@@ -197,6 +240,9 @@ export default function LoginPage() {
                       maxLength={30}
                     />
                   </div>
+                  <p className="text-xs text-gray-500">
+                    3-30 characters, letters, numbers, underscores, and hyphens only
+                  </p>
                 </div>
               )}
 
@@ -250,7 +296,11 @@ export default function LoginPage() {
                     )}
                   </Button>
                 </div>
-                {!isLogin && <p className="text-xs text-gray-500">Password must be at least 8 characters long</p>}
+                {!isLogin && (
+                  <p className="text-xs text-gray-500">
+                    Must be at least 8 characters with uppercase, lowercase, and number
+                  </p>
+                )}
               </div>
 
               {!isLogin && (
@@ -317,10 +367,10 @@ export default function LoginPage() {
                 {loading ? (
                   <div className="flex items-center space-x-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>{isLogin ? "Signing in..." : "Creating account..."}</span>
+                    <span>{isLogin ? "Logging in..." : "Creating account..."}</span>
                   </div>
                 ) : isLogin ? (
-                  "Sign In"
+                  "Login"
                 ) : (
                   "Create Account"
                 )}
@@ -329,11 +379,33 @@ export default function LoginPage() {
 
             <div className="text-center pt-4">
               <Button variant="link" onClick={toggleMode} className="text-orange-600 hover:text-orange-700 font-medium">
-                {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+                {isLogin ? "Don't have an account? Sign up" : "Already have an account? Login"}
               </Button>
             </div>
+
+            {isLogin && (
+              <div className="text-center">
+                <Link href="/forgot-password" className="text-sm text-orange-600 hover:text-orange-700 underline">
+                  Forgot your password?
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Additional Info */}
+        <div className="mt-6 text-center text-xs text-gray-500">
+          <p>
+            By creating an account, you agree to our{" "}
+            <Link href="/termsandconditions" className="text-orange-600 hover:underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-orange-600 hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )
