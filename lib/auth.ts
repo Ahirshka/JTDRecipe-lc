@@ -356,3 +356,158 @@ export function getRoleBadgeColor(role: UserRole | string | undefined): string {
 
   return roleColors[role as UserRole] || "bg-gray-100 text-gray-800"
 }
+
+// Missing exports that were required
+export async function suspendUser(userId: string, reason: string, durationDays: number): Promise<boolean> {
+  try {
+    const users = getUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) return false
+
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + durationDays)
+
+    users[userIndex] = {
+      ...users[userIndex],
+      status: "suspended",
+      isSuspended: true,
+      suspensionReason: reason,
+      suspensionExpiresAt: expiresAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recipe_users", JSON.stringify(users))
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error suspending user:", error)
+    return false
+  }
+}
+
+export async function unsuspendUser(userId: string): Promise<boolean> {
+  try {
+    const users = getUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) return false
+
+    users[userIndex] = {
+      ...users[userIndex],
+      status: "active",
+      isSuspended: false,
+      suspensionReason: undefined,
+      suspensionExpiresAt: undefined,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recipe_users", JSON.stringify(users))
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error unsuspending user:", error)
+    return false
+  }
+}
+
+export async function banUser(userId: string, reason: string): Promise<boolean> {
+  try {
+    const users = getUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) return false
+
+    users[userIndex] = {
+      ...users[userIndex],
+      status: "banned",
+      suspensionReason: reason,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recipe_users", JSON.stringify(users))
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error banning user:", error)
+    return false
+  }
+}
+
+export async function changeUserRole(userId: string, newRole: UserRole): Promise<boolean> {
+  try {
+    const users = getUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) return false
+
+    users[userIndex] = {
+      ...users[userIndex],
+      role: newRole,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recipe_users", JSON.stringify(users))
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error changing user role:", error)
+    return false
+  }
+}
+
+export async function verifyUser(userId: string): Promise<boolean> {
+  try {
+    const users = getUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) return false
+
+    users[userIndex] = {
+      ...users[userIndex],
+      isVerified: true,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recipe_users", JSON.stringify(users))
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error verifying user:", error)
+    return false
+  }
+}
+
+export async function warnUser(userId: string, reason: string): Promise<boolean> {
+  try {
+    const users = getUsers()
+    const userIndex = users.findIndex((user) => user.id === userId)
+
+    if (userIndex === -1) return false
+
+    users[userIndex] = {
+      ...users[userIndex],
+      warningCount: (users[userIndex].warningCount || 0) + 1,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recipe_users", JSON.stringify(users))
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error warning user:", error)
+    return false
+  }
+}
